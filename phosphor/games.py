@@ -221,3 +221,212 @@ class GamesMixin:
                 self.record_score("wordle_best", attempt + 1, "min")
                 self.p("  ✦ brilliant! ✦", "warn"); return
         self.p(f"  out of tries — the word was '{answer}'.", "dim")
+
+    def cmd_2048(self, args=None):
+        size = 4
+        grid = [[0] * size for _ in range(size)]
+        score = 0
+
+        def spawn():
+            empties = [(r, c) for r in range(size) for c in range(size) if grid[r][c] == 0]
+            if empties:
+                r, c = random.choice(empties)
+                grid[r][c] = 4 if random.random() < 0.1 else 2
+
+        def draw():
+            print()
+            for row in grid:
+                self.p("  " + "".join(f"{(str(v) if v else '.'):>6}" for v in row), "accent")
+            self.p(f"  score: {score}", "dim")
+
+        def compress(line):
+            nums = [x for x in line if x]
+            out, gained, i = [], 0, 0
+            while i < len(nums):
+                if i + 1 < len(nums) and nums[i] == nums[i + 1]:
+                    out.append(nums[i] * 2); gained += nums[i] * 2; i += 2
+                else:
+                    out.append(nums[i]); i += 1
+            return out + [0] * (size - len(out)), gained
+
+        def move(direction):
+            nonlocal score
+            moved = False
+            for i in range(size):
+                if direction in ("a", "d"):
+                    line = grid[i][::-1] if direction == "d" else grid[i][:]
+                    new, g = compress(line)
+                    if direction == "d":
+                        new = new[::-1]
+                    if new != grid[i]:
+                        grid[i] = new; moved = True
+                    score += g
+                else:
+                    col = [grid[r][i] for r in range(size)]
+                    if direction == "s":
+                        col = col[::-1]
+                    new, g = compress(col)
+                    if direction == "s":
+                        new = new[::-1]
+                    for r in range(size):
+                        if grid[r][i] != new[r]:
+                            moved = True
+                        grid[r][i] = new[r]
+                    score += g
+            return moved
+
+        def can_move():
+            if any(0 in row for row in grid):
+                return True
+            for r in range(size):
+                for c in range(size):
+                    if c + 1 < size and grid[r][c] == grid[r][c + 1]:
+                        return True
+                    if r + 1 < size and grid[r][c] == grid[r + 1][c]:
+                        return True
+            return False
+
+        spawn(); spawn()
+        self.p("  2048 — combine tiles. w/a/s/d to slide, q to quit.", "accent")
+        won = False
+        while True:
+            draw()
+            if any(2048 in row for row in grid) and not won:
+                self.p("  ★ you reached 2048! keep going or press q. ★", "warn")
+                won = True
+            raw = self._input("  move> ")
+            if raw is None or raw.strip().lower().startswith("q"):
+                self.record_score("2048_best", score, "max")
+                self.p(f"  final score: {score}", "dim"); return
+            d = raw.strip().lower()[:1]
+            if d not in "wasd":
+                self.p("  use w / a / s / d.", "err"); continue
+            if move(d):
+                spawn()
+                if not can_move():
+                    draw()
+                    self.record_score("2048_best", score, "max")
+                    self.p("  no moves left — game over!", "err"); return
+            else:
+                self.p("  (no change — try another direction)", "dim")
+
+    def cmd_minesweeper(self, args=None):
+        W = H = 9
+        MINES = 10
+        mines = set()
+        while len(mines) < MINES:
+            mines.add((random.randrange(H), random.randrange(W)))
+        revealed, flags = set(), set()
+
+        def count(r, c):
+            return sum((rr, cc) in mines
+                       for rr in range(r - 1, r + 2) for cc in range(c - 1, c + 2)
+                       if (rr, cc) != (r, c))
+
+        def draw(reveal_all=False):
+            self.p("     " + " ".join(str(c + 1) for c in range(W)), "dim")
+            for r in range(H):
+                cells = []
+                for c in range(W):
+                    if (r, c) in flags and not reveal_all:
+                        cells.append("F")
+                    elif (r, c) not in revealed and not reveal_all:
+                        cells.append("·")
+                    elif (r, c) in mines:
+                        cells.append("*")
+                    else:
+                        n = count(r, c)
+                        cells.append(str(n) if n else " ")
+                self.p(f"  {r + 1:>2} " + " ".join(cells), "text")
+
+        def flood(r, c):
+            stack = [(r, c)]
+            while stack:
+                cr, cc = stack.pop()
+                if not (0 <= cr < H and 0 <= cc < W):
+                    continue
+                if (cr, cc) in revealed or (cr, cc) in mines:
+                    continue
+                revealed.add((cr, cc))
+                if count(cr, cc) == 0:
+                    for rr in range(cr - 1, cr + 2):
+                        for cc2 in range(cc - 1, cc + 2):
+                            stack.append((rr, cc2))
+
+        self.p("  Minesweeper — 9x9, 10 mines.", "accent")
+        self.p("  reveal: 'row col'   flag: 'f row col'   quit: q", "dim")
+        while True:
+            draw()
+            raw = self._input("  > ")
+            if raw is None or raw.strip().lower().startswith("q"):
+                self.p("  game abandoned.", "dim"); return
+            parts = raw.strip().lower().split()
+            flagging = bool(parts) and parts[0] in ("f", "flag")
+            if flagging:
+                parts = parts[1:]
+            if len(parts) < 2 or not (parts[0].isdigit() and parts[1].isdigit()):
+                self.p("  enter: row col   (e.g. 3 5)", "err"); continue
+            r, c = int(parts[0]) - 1, int(parts[1]) - 1
+            if not (0 <= r < H and 0 <= c < W):
+                self.p("  out of range.", "err"); continue
+            if flagging:
+                flags.discard((r, c)) if (r, c) in flags else flags.add((r, c))
+                continue
+            if (r, c) in mines:
+                draw(reveal_all=True)
+                self.p("  * BOOM — you hit a mine. *", "err"); return
+            flood(r, c)
+            if W * H - len(revealed) == MINES:
+                draw(reveal_all=True)
+                self.record_score("minesweeper_wins", 1, "count")
+                self.p("  ✦ field cleared — you win! ✦", "warn"); return
+
+    def cmd_blackjack(self, args=None):
+        def card():
+            return random.randint(1, 13)
+
+        def show(c):
+            return {1: "A", 11: "J", 12: "Q", 13: "K"}.get(c, str(c))
+
+        def total(cards):
+            t, aces = 0, 0
+            for c in cards:
+                if c == 1:
+                    aces += 1; t += 11
+                else:
+                    t += min(c, 10)
+            while t > 21 and aces:
+                t -= 10; aces -= 1
+            return t
+
+        player, dealer = [card(), card()], [card(), card()]
+        self.p("  Blackjack — get close to 21 without going over.", "accent")
+        while True:
+            self.p(f"  you: {[show(c) for c in player]} = {total(player)}", "text")
+            self.p(f"  dealer shows: {show(dealer[0])}", "dim")
+            if total(player) == 21:
+                self.p("  21!", "warn"); break
+            raw = self._input("  [h]it or [s]tand? ")
+            if raw is None:
+                return
+            ch = raw.strip().lower()[:1]
+            if ch == "h":
+                player.append(card())
+                if total(player) > 21:
+                    self.p(f"  you: {[show(c) for c in player]} = {total(player)} — BUST!", "err")
+                    return
+            elif ch == "s":
+                break
+            else:
+                self.p("  press h or s.", "err")
+        while total(dealer) < 17:
+            dealer.append(card())
+        pv, dv = total(player), total(dealer)
+        self.p(f"  dealer: {[show(c) for c in dealer]} = {dv}", "text")
+        if dv > 21 or pv > dv:
+            self.record_score("blackjack_wins", 1, "count")
+            self.p("  ✦ you win! ✦", "warn")
+        elif pv == dv:
+            self.p("  push — it's a tie.", "dim")
+        else:
+            self.p("  dealer wins. better luck next deal.", "err")

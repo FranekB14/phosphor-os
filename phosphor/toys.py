@@ -239,3 +239,10 @@ class ToysMixin:
         for r in rows:
             self.p(r, "accent")
         self.p(f"  {datetime.date.today().strftime('%A, %d %B %Y')}", "dim")
+
+    def cmd_screensaver(self, args=None):
+        saver = random.choice(["matrix", "fire", "aquarium"])
+        self.p(f"  screensaver: {saver}  (Ctrl-C to wake)", "dim")
+        if runtime.INTERACTIVE:
+            time.sleep(0.6)
+        getattr(self, "cmd_" + saver)()

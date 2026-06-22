@@ -171,6 +171,68 @@ class ToolsMixin:
     def cmd_flip(self, args=None):
         self.p("  " + random.choice(["HEADS", "TAILS"]), "accent")
 
+    def cmd_convert(self, args):
+        if len(args) < 3:
+            self.p("usage: convert <value> <from> <to>   e.g. convert 10 km mi", "warn")
+            self.p("  length: km m cm mm mi yd ft in    weight: kg g mg lb oz t", "dim")
+            self.p("  temperature: c f k", "dim")
+            return
+        try:
+            value = float(args[0])
+        except ValueError:
+            self.p("  the first argument must be a number.", "err"); return
+        frm, to = args[1].lower(), args[2].lower()
+        length = {"km": 1000, "m": 1, "cm": 0.01, "mm": 0.001,
+                  "mi": 1609.344, "yd": 0.9144, "ft": 0.3048, "in": 0.0254}
+        weight = {"t": 1e6, "kg": 1000, "g": 1, "mg": 0.001, "lb": 453.592, "oz": 28.3495}
+        if frm in length and to in length:
+            result = value * length[frm] / length[to]
+        elif frm in weight and to in weight:
+            result = value * weight[frm] / weight[to]
+        elif frm in ("c", "f", "k") and to in ("c", "f", "k"):
+            c = value if frm == "c" else (value - 32) * 5 / 9 if frm == "f" else value - 273.15
+            result = c if to == "c" else c * 9 / 5 + 32 if to == "f" else c + 273.15
+        else:
+            self.p("  can't convert those units (mismatched or unknown).", "err"); return
+        self.p(f"  {value:g} {frm} = {result:g} {to}", "accent")
+
+    def cmd_todo(self, args):
+        if not args:
+            if not self.todos:
+                self.p("  (no tasks) — add one with: todo add <text>", "dim"); return
+            self.p("  ─ TO-DO ────────────────────────", "accent")
+            for i, t in enumerate(self.todos, 1):
+                mark = "x" if t.get("done") else " "
+                role = "dim" if t.get("done") else "text"
+                self.p(f"  {i:>3} [{mark}] {t['text']}", role)
+            return
+        sub, rest = args[0].lower(), " ".join(args[1:]).strip()
+        if sub == "add":
+            if not rest:
+                self.p("usage: todo add <text>", "warn"); return
+            self.todos.append({"text": rest, "done": False}); self.save_config()
+            self.p(f"  added: {rest}", "accent")
+        elif sub in ("done", "do", "check") and rest.isdigit():
+            i = int(rest) - 1
+            if 0 <= i < len(self.todos):
+                self.todos[i]["done"] = not self.todos[i]["done"]; self.save_config()
+                state = "done" if self.todos[i]["done"] else "todo"
+                self.p(f"  {state}: {self.todos[i]['text']}", "accent")
+            else:
+                self.p("  no task with that number.", "err")
+        elif sub in ("rm", "del", "remove") and rest.isdigit():
+            i = int(rest) - 1
+            if 0 <= i < len(self.todos):
+                gone = self.todos.pop(i); self.save_config()
+                self.p(f"  removed: {gone['text']}", "accent")
+            else:
+                self.p("  no task with that number.", "err")
+        elif sub == "clear":
+            self.todos = []; self.save_config()
+            self.p("  all tasks cleared.", "accent")
+        else:
+            self.p("usage: todo | todo add <text> | todo done <n> | todo rm <n> | todo clear", "warn")
+
     _MORSE = {
         "A": ".-", "B": "-...", "C": "-.-.", "D": "-..", "E": ".", "F": "..-.",
         "G": "--.", "H": "....", "I": "..", "J": ".---", "K": "-.-", "L": ".-..",

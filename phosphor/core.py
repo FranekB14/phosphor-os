@@ -25,9 +25,17 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "2.5"
+    VERSION = "2.6"
 
     DISK_FILE = "phosphor_disk.json"
+
+    PKG_CATALOG = {
+        "ascii-zoo":    "a pack of extra ASCII animals",
+        "extra-themes": "three bonus color schemes (flavor)",
+        "hacker-suite": "more theatrical fake-hacking tools",
+        "lucky-charm":  "a charm for the slot machine (cosmetic)",
+        "retro-sfx":    "imaginary boot chimes and key clicks",
+    }
 
     UPDATE_REPO = "FranekB14/phosphor-os"
 
@@ -68,6 +76,8 @@ class CoreShell:
         ("lower",  [],             "tools", "lower <text>",        "Lowercase text"),
         ("roll",   ["dice"],       "tools", "roll [NdM]",          "Roll dice, e.g. roll 2d6"),
         ("flip",   [],             "tools", "flip",                "Flip a coin"),
+        ("convert",["conv","unit"],"tools", "convert <n> <from> <to>", "Convert units (length / weight / temp)"),
+        ("todo",   ["task","tasks"],"tools","todo [add|done|rm|clear]", "A simple saved to-do list"),
         # --- system ---
         ("help",   ["?", "man"],   "system","help [command]",     "Show commands or help for one command"),
         ("clear",  ["cls"],        "system","clear",              "Clear the screen"),
@@ -81,6 +91,8 @@ class CoreShell:
         ("run",    ["batch","do"], "system","run <file>",         "Run a file of commands (batch script)"),
         ("update", ["upgrade"],    "system","update [--check] [--force] [--repo u/r]",
                                                                    "Update PHOSPHOR-OS from its GitHub distro"),
+        ("pkg",    ["package"],     "system","pkg [list|install|remove] <name>", "The (fake) package manager"),
+        ("secrets",["secret"],     "system","secrets",             "Hints that the OS is hiding something"),
         ("scores", [],             "system","scores",             "Show your best game scores"),
         ("setname",["rename"],     "system","setname <name>",     "Change your username (saved)"),
         ("whoami", [],             "system","whoami",             "Show current user"),
@@ -113,6 +125,7 @@ class CoreShell:
         ("fire",   [],             "toys",  "fire [frames]",       "A cozy ASCII campfire"),
         ("aquarium", ["fish"],     "toys",  "aquarium [frames]",   "A little ASCII fish tank"),
         ("clock",  [],             "toys",  "clock",               "Show the time as a big ASCII clock"),
+        ("screensaver", ["saver"], "toys",  "screensaver",         "Run a random screensaver animation"),
         # --- games ---
         ("guess",  [],             "games", "guess",               "Guess-the-number game (1-100)"),
         ("rps",    [],             "games", "rps",                 "Rock paper scissors, best of 3"),
@@ -120,6 +133,9 @@ class CoreShell:
         ("ttt",    ["tictactoe"],  "games", "ttt",                 "Tic-tac-toe versus the computer"),
         ("quiz",   ["trivia"],     "games", "quiz",                "A quick 5-question trivia quiz"),
         ("wordle", ["phosdle"],    "games", "wordle",              "Guess the 5-letter word in 6 tries"),
+        ("2048",   [],             "games", "2048",                "Slide and merge tiles to reach 2048"),
+        ("minesweeper", ["mines"], "games", "minesweeper",         "Clear the field without hitting a mine"),
+        ("blackjack", ["21"],      "games", "blackjack",           "Beat the dealer to 21 without busting"),
     ]
 
     def __init__(self, input_fn=input):
@@ -139,6 +155,8 @@ class CoreShell:
         self.scores = {}
         self.aliases = {}        # user-defined command aliases (Phase 2)
         self.env = {}            # user environment variables (Phase 2)
+        self.todos = []          # to-do list items (Phase 3)
+        self.packages = []       # installed fake packages (Phase 3)
         self._pipe_in = None     # text piped into the current command, or None
         self._batch_depth = 0    # guard against runaway batch-script recursion
         self.update_repo = self.UPDATE_REPO
@@ -168,6 +186,10 @@ class CoreShell:
                 self.aliases = {str(k): str(v) for k, v in cfg["aliases"].items()}
             if isinstance(cfg.get("env"), dict):
                 self.env = {str(k): str(v) for k, v in cfg["env"].items()}
+            if isinstance(cfg.get("todos"), list):
+                self.todos = [t for t in cfg["todos"] if isinstance(t, dict) and "text" in t]
+            if isinstance(cfg.get("packages"), list):
+                self.packages = [str(p) for p in cfg["packages"]]
             if cfg.get("update_repo"):
                 self.update_repo = cfg["update_repo"]
             if cfg.get("update_branch"):
@@ -180,6 +202,7 @@ class CoreShell:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump({"theme": self.theme_name, "user": self.user,
                            "aliases": self.aliases, "env": self.env,
+                           "todos": self.todos, "packages": self.packages,
                            "update_repo": self.update_repo,
                            "update_branch": self.update_branch}, f)
         except Exception:

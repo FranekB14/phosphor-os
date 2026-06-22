@@ -340,6 +340,9 @@ class SystemMixin:
             "rps_wins": "Rock-Paper-Scissors wins",
             "ttt_wins": "Tic-Tac-Toe wins",
             "hangman_wins": "Hangman wins",
+            "2048_best": "2048 (best score)",
+            "minesweeper_wins": "Minesweeper wins",
+            "blackjack_wins": "Blackjack wins",
         }
         if not self.scores:
             self.p("  no scores yet — go play some games!", "dim"); return
@@ -354,6 +357,64 @@ class SystemMixin:
         self.user = args[0].strip()[:20].lower()
         self.save_config()
         self.p(f"  you are now '{self.user}'.", "accent")
+
+    def cmd_secrets(self, args=None):
+        hints = [
+            "Some words are not commands, yet the OS still listens for them.",
+            "Adventurers of old muttered a magic word in dark, hollow places.",
+            "There is talk of a cake. They say the cake is not to be trusted.",
+            "Ask the universe for the meaning of life — answer in a single number.",
+            "Pilots like to do a certain roll. Try asking for one.",
+            "Something with a single eye watches from an impossible angle.",
+            "Every programmer's very first words to the world still echo here.",
+            "A polite request to a sudo-er might just earn you a sandwich.",
+        ]
+        self.p("  ─ WHISPERS ─────────────────────", "accent")
+        self.p("  This machine is hiding things. A few hints:", "dim")
+        for h in random.sample(hints, k=min(3, len(hints))):
+            self.p("   • " + h, "text")
+        self.p("  (try typing phrases, not just commands...)", "dim")
+
+    def cmd_pkg(self, args):
+        if not args or args[0].lower() in ("list", "ls"):
+            self.p("  ─ PHOSPHOR PACKAGE REPOSITORY ──", "accent")
+            for name, desc in self.PKG_CATALOG.items():
+                installed = name in self.packages
+                tag = "[installed]" if installed else "[available]"
+                self.p(f"  {tag:>12} {name:<14} {desc}", "dim" if installed else "text")
+            self.p("  install with:  pkg install <name>", "dim")
+            return
+        sub = args[0].lower()
+        name = args[1] if len(args) > 1 else ""
+        if sub == "install":
+            if name not in self.PKG_CATALOG:
+                self.p(f"  no package named '{name}'. try 'pkg list'.", "err"); return
+            if name in self.packages:
+                self.p(f"  {name} is already installed.", "dim"); return
+            self.p(f"  resolving {name} from phosphor-repo...", "dim")
+            bar = 24
+            if runtime.INTERACTIVE or runtime.GUI_ACTIVE:
+                for i in range(bar + 1):
+                    pct = int(i / bar * 100)
+                    print("\r" + self.c(f"  downloading [{'#' * i}{'-' * (bar - i)}] {pct:3d}%", "text"), end="")
+                    time.sleep(0.04)
+                print()
+            self.packages.append(name)
+            self.save_config()
+            self.p(f"  ✔ installed {name}.", "accent")
+        elif sub in ("remove", "uninstall", "rm"):
+            if name in self.packages:
+                self.packages.remove(name); self.save_config()
+                self.p(f"  removed {name}.", "accent")
+            else:
+                self.p(f"  {name} is not installed.", "err")
+        elif sub == "installed":
+            if not self.packages:
+                self.p("  (nothing installed)", "dim"); return
+            for n in self.packages:
+                self.p("  • " + n, "text")
+        else:
+            self.p("usage: pkg list | pkg install <name> | pkg remove <name> | pkg installed", "warn")
 
     def cmd_date(self, args=None):
         self.p("  " + datetime.date.today().strftime("%A, %d %B %Y"), "text")
