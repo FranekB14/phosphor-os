@@ -333,7 +333,7 @@ screensaver list       show what's available
 ```
 
 Available savers: `matrix`, `starfield`, `life` (Conway's Game of Life),
-`bounce`, `fireworks`, and `fire`. The window sizes itself to your screen and
+`bounce`, `fireworks`, `fire`, `plasma`, `rain`, `wave`, and `worms`. The window sizes itself to your screen and
 re-fits if you resize it. (In a plain terminal with `--console`, screensavers run
 inline and wake on Ctrl-C instead.)
 

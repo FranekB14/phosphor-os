@@ -260,13 +260,14 @@ class ToysMixin:
         return W, H
 
     def cmd_screensaver(self, args=None):
-        names = ["matrix", "starfield", "life", "bounce", "fireworks", "fire"]
+        names = ["matrix", "starfield", "life", "bounce", "fireworks", "fire",
+                 "plasma", "rain", "wave", "worms"]
         if args and args[0].lower() in ("list", "ls"):
             self.p("  screensavers: " + ", ".join(names), "accent")
             self.p("  run: screensaver <name>   (or just 'screensaver' for a random one)", "dim")
             return
         a0 = args[0].lower() if args else ""
-        name = a0 if a0 in names else ("starfield" if a0 == "rain" else random.choice(names))
+        name = a0 if a0 in names else random.choice(names)
         if self._gui_saver is not None:        # GUI: open a dedicated fullscreen window
             self.p(f"  ░ {name} screensaver — opening in its own window (any key to close) ░", "dim")
             self._gui_saver(name)
@@ -487,4 +488,88 @@ class ToysMixin:
                 if h >= 20:
                     crow[x] = palette[min(plen - 1, h * plen // 256)]
                     colrow[x] = (255, h if h < 255 else 255, h - 160 if h > 160 else 0)
+        return chars, colors
+
+    def _saver_plasma(self, st, W, H):
+        import math
+        t = st.get("t", 0.0); st["t"] = t + 0.18
+        chars = [["█"] * W for _ in range(H)]
+        colors = [[None] * W for _ in range(H)]
+        cx, cy = W / 2, H / 2
+        for y in range(H):
+            for x in range(W):
+                v = (math.sin(x * 0.22 + t)
+                     + math.sin(y * 0.27 - t * 0.7)
+                     + math.sin((x + y) * 0.15 + t)
+                     + math.sin(math.hypot(x - cx, y - cy) * 0.2 - t))
+                h = (v + 4) / 8.0                  # 0..1
+                r = int(128 + 120 * math.sin(math.pi * 2 * h))
+                g = int(128 + 120 * math.sin(math.pi * 2 * h + 2.09))
+                b = int(128 + 120 * math.sin(math.pi * 2 * h + 4.18))
+                colors[y][x] = (max(0, r), max(0, g), max(0, b))
+        return chars, colors
+
+    def _saver_rain(self, st, W, H):
+        if "drops" not in st:
+            st["drops"] = []
+        for _ in range(max(1, W // 14)):
+            if random.random() < 0.5:
+                st["drops"].append([random.randint(0, W - 1), 0, random.randint(1, 2)])
+        chars = [[" "] * W for _ in range(H)]
+        colors = [[None] * W for _ in range(H)]
+        alive = []
+        for d in st["drops"]:
+            x, y, sp = d
+            for k in range(3):                     # a short vertical streak
+                yy = y - k
+                if 0 <= yy < H and 0 <= x < W:
+                    chars[yy][x] = "|"
+                    shade = 220 - k * 60
+                    colors[yy][x] = (90, shade - 40, shade)
+            d[1] += sp
+            if d[1] - 3 < H:
+                alive.append(d)
+        st["drops"] = alive
+        return chars, colors
+
+    def _saver_wave(self, st, W, H):
+        import math
+        t = st.get("t", 0.0); st["t"] = t + 0.25
+        chars = [[" "] * W for _ in range(H)]
+        colors = [[None] * W for _ in range(H)]
+        for x in range(W):
+            surface = int(H / 2 + (H / 2 - 2) * 0.6 *
+                          (math.sin(x * 0.18 + t) + 0.5 * math.sin(x * 0.07 - t * 1.3)))
+            surface = max(0, min(H - 1, surface))
+            for y in range(surface, H):            # fill the "water" below the surface
+                depth = (y - surface) / max(1, H - surface)
+                b = int(220 - 140 * depth)
+                chars[y][x] = "~" if y == surface else "≈"
+                colors[y][x] = (20, int(90 + 60 * (1 - depth)), b)
+        return chars, colors
+
+    def _saver_worms(self, st, W, H):
+        if "worms" not in st:
+            st["worms"] = [{"x": random.randint(0, W - 1), "y": random.randint(0, H - 1),
+                            "dx": random.choice([-1, 0, 1]), "dy": random.choice([-1, 0, 1]),
+                            "c": (random.randint(120, 255), random.randint(120, 255),
+                                  random.randint(120, 255)),
+                            "trail": []} for _ in range(max(3, W // 18))]
+        chars = [[" "] * W for _ in range(H)]
+        colors = [[None] * W for _ in range(H)]
+        for w in st["worms"]:
+            if random.random() < 0.3 or (w["dx"] == 0 and w["dy"] == 0):
+                w["dx"], w["dy"] = random.choice([(-1, 0), (1, 0), (0, -1), (0, 1),
+                                                  (1, 1), (-1, -1), (1, -1), (-1, 1)])
+            w["x"] = (w["x"] + w["dx"]) % W
+            w["y"] = (w["y"] + w["dy"]) % H
+            w["trail"].append((w["x"], w["y"]))
+            if len(w["trail"]) > 16:
+                w["trail"].pop(0)
+            n = len(w["trail"])
+            for i, (tx, ty) in enumerate(w["trail"]):
+                f = 0.25 + 0.75 * (i / n)
+                c = w["c"]
+                chars[ty][tx] = "o" if i == n - 1 else "·"
+                colors[ty][tx] = (int(c[0] * f), int(c[1] * f), int(c[2] * f))
         return chars, colors
