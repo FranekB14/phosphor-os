@@ -465,14 +465,12 @@ class SystemMixin:
         self.p("  disk reloaded from host.", "accent")
 
     def cmd_format(self, args=None):
-        self.p("  This wipes the ENTIRE virtual disk. Type 'YES' to confirm: ", "warn", end="")
-        try:
-            ans = input()
-        except EOFError:
-            ans = ""
-        if ans.strip() == "YES":
+        ans = self._input("  This wipes the ENTIRE virtual disk. Type 'YES' to confirm: ", "warn")
+        if ans is not None and ans.strip() == "YES":
             self.disk = _default_disk()
             self.cwd = []
+            self._ensure_system_files()      # re-create /etc, /root
+            self._ensure_home(self.user)     # and the current user's home
             self.save_disk()
             self.p("  disk formatted. fresh filesystem installed.", "accent")
         else:

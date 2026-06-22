@@ -381,8 +381,7 @@ class CoreShell:
     def prompt(self):
         path = self.c(self._cwd_str(), "accent")
         who = self.c(f"{self.user}@phosphor", "dim")
-        sym = "# " if self.uid == 0 else "» "
-        return f"{self.c('[', 'dim')}{who} {path}{self.c(']', 'dim')}{self.c(sym, 'text')}"
+        return f"{self.c('[', 'dim')}{who} {path}{self.c(']', 'dim')}{self.c('» ', 'text')}"
 
     def run(self):
         self.boot()
