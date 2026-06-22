@@ -93,7 +93,7 @@ exe is what makes this possible — no rebuild needed.
 
 ## Command reference
 
-There are **114 commands**. Type `help` inside the OS for the live list, or
+There are **117 commands**. Type `help` inside the OS for the live list, or
 `help <command>` for usage and aliases. Almost every command has short aliases
 (shown in parentheses).
 
@@ -170,6 +170,9 @@ There are **114 commands**. Type `help` inside the OS for the live list, or
 | `date` | Show the current date |
 | `time` | Show the current time |
 | `uptime` | Show how long this session has run |
+| `ps` (proc, procs) | List running processes (PID, user, CPU, mem, state) |
+| `top` (htop) | Live process monitor — load, memory, and a sorted process list |
+| `kill` | Terminate a process by PID (`kill -9` to force; system daemons are protected) |
 | `ver` (about) | Show OS version / about |
 | `save` | Save the virtual disk to the host |
 | `load` | Reload the virtual disk from the host |

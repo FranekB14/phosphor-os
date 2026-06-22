@@ -544,8 +544,128 @@ class SystemMixin:
         self.p("  " + datetime.datetime.now().strftime("%H:%M:%S"), "text")
 
     def cmd_uptime(self, args=None):
+        self._ensure_procs()
         up = int(time.time() - self.start_time)
-        self.p(f"  session uptime: {up // 60}m {up % 60}s", "text")
+        h, m, s = up // 3600, (up % 3600) // 60, up % 60
+        when = (f"{h}h " if h else "") + f"{m}m {s}s"
+        load = round(sum(p["cpu"] for p in self.procs.values()) / 25 * random.uniform(0.8, 1.2), 2)
+        self.p(f"  up {when},  {len(self.procs)} processes,  load average: {load}", "text")
+
+    _DAEMONS = [
+        (0, "root", "[kernel]",           0.0, 0.0, "S<",  True),
+        (1, "root", "/sbin/init",         0.1, 0.4, "Ss",  True),
+        (2, "root", "phosphor-display",   1.4, 3.1, "Ssl", True),
+        (3, "root", "cathoded --refresh", 0.8, 1.2, "S",   True),
+        (4, "root", "netd",               0.3, 0.9, "Ss",  True),
+        (5, "root", "theangled",          0.0, 0.7, "D<",  True),
+        (6, "root", "oracled",            0.2, 1.5, "Ss",  True),
+        (7, "root", "phosphor-fsd",       0.4, 1.1, "Ss",  True),
+        (8, "root", "cron",               0.0, 0.3, "Ss",  True),
+    ]
+
+    def _ensure_procs(self):
+        if self.procs is not None:
+            return
+        self.procs = {}
+        for pid, user, name, cpu, mem, state, prot in self._DAEMONS:
+            self.procs[pid] = {"pid": pid, "user": user, "name": name,
+                               "cpu": cpu, "mem": mem, "state": state, "protected": prot}
+        # the user's own session + a couple of harmless, killable background tasks
+        self.procs[420] = {"pid": 420, "user": self.user, "name": "phosphor-sh",
+                           "cpu": 0.5, "mem": 1.8, "state": "Ss", "protected": True}
+        self.procs[711] = {"pid": 711, "user": self.user, "name": "aquariumd",
+                           "cpu": 0.6, "mem": 0.8, "state": "S", "protected": False}
+        self.procs[1337] = {"pid": 1337, "user": self.user, "name": "matrix-rain",
+                            "cpu": 2.3, "mem": 1.0, "state": "R", "protected": False}
+
+    def _proc_snapshot(self):
+        self._ensure_procs()
+        rows = []
+        for pid in sorted(self.procs):
+            p = self.procs[pid]
+            cpu = max(0.0, (p["cpu"] + random.uniform(-0.3, 0.6)) if p["cpu"] else random.uniform(0, 0.2))
+            mem = max(0.0, p["mem"] + random.uniform(-0.1, 0.2))
+            rows.append((pid, p["user"], cpu, mem, p["state"], p["name"]))
+        return rows
+
+    def _proc_header(self):
+        self.p(f"  {'PID':>5}  {'USER':<9} {'%CPU':>5} {'%MEM':>5}  {'STAT':<4} COMMAND", "accent")
+
+    def cmd_ps(self, args=None):
+        rows = self._proc_snapshot()
+        self._proc_header()
+        for pid, user, cpu, mem, state, name in rows:
+            self.p(f"  {pid:>5}  {user:<9} {cpu:>5.1f} {mem:>5.1f}  {state:<4} {name}", "text")
+        self.p(f"  {len(rows)} processes", "dim")
+
+    def _top_render(self):
+        rows = self._proc_snapshot()
+        up = int(time.time() - self.start_time)
+        load = sum(r[2] for r in rows) / 25
+        loads = [round(load * random.uniform(0.7, 1.3), 2) for _ in range(3)]
+        totmem = 64.0
+        usedmem = min(totmem, sum(r[3] for r in rows) / 100 * totmem + 8)
+        self.p(f"  top — up {up // 60}m {up % 60}s · {len(rows)} tasks · "
+               f"load {loads[0]}, {loads[1]}, {loads[2]}", "accent")
+        self.p(f"  mem: {totmem:.0f}M total · {usedmem:.1f}M used · "
+               f"{totmem - usedmem:.1f}M free", "dim")
+        self._proc_header()
+        for pid, user, cpu, mem, state, name in sorted(rows, key=lambda r: -r[2])[:14]:
+            self.p(f"  {pid:>5}  {user:<9} {cpu:>5.1f} {mem:>5.1f}  {state:<4} {name}", "text")
+
+    def cmd_top(self, args=None):
+        self._ensure_procs()
+        gui = getattr(self, "_gui_saver", None) is not None
+        if gui or not runtime.INTERACTIVE:                      # turn-based monitor (GUI / piped)
+            while True:
+                self.p("  " + "─" * 52, "dim")
+                self._top_render()
+                r = self._input("  [Enter] refresh · q quit ", "dim")
+                if r is None or r.strip().lower() == "q":
+                    return
+        else:                                           # animated monitor (real console)
+            try:
+                while True:
+                    print("\033[2J\033[3J\033[H", end="")
+                    self._top_render()
+                    print(self.c("\n  (Ctrl-C to quit)", "dim"))
+                    time.sleep(1.3)
+            except KeyboardInterrupt:
+                print()
+
+    def cmd_kill(self, args=None):
+        self._ensure_procs()
+        args = args or []
+        force, pids = False, []
+        for a in args:
+            if a.lower() in ("-9", "-kill", "-f", "-sigkill"):
+                force = True
+            else:
+                try:
+                    pids.append(int(a))
+                except ValueError:
+                    self.p(f"  kill: '{a}' is not a valid pid.", "err")
+        if not pids:
+            self.p("usage: kill [-9] <pid>    (run 'ps' to see pids)", "warn"); return
+        for pid in pids:
+            p = self.procs.get(pid)
+            if not p:
+                self.p(f"  kill: ({pid}) - no such process", "err"); continue
+            if p["name"] == "theangled":
+                self.p("  kill: theangled (5) will not die.", "err")
+                self.p("        it was watching long before you opened this terminal.", "dim")
+                continue
+            if p["protected"]:
+                if force and self.uid == 0:
+                    self.p(f"  kill: refusing to terminate critical process {pid} ({p['name']});", "err")
+                    self.p("        ending it would bring the whole session down.", "dim")
+                else:
+                    self.p(f"  kill: ({pid}) {p['name']} - operation not permitted", "err")
+                    self.p("        (critical system process — try 'ps' for ones you own)", "dim")
+                continue
+            name = p["name"]
+            del self.procs[pid]
+            self.p(f"  terminated [{pid}] {name}" + ("  (SIGKILL)" if force else ""), "accent")
 
     def cmd_ver(self, args=None):
         self.p(f"  PHOSPHOR-OS  v{self.VERSION}", "accent")

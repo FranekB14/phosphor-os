@@ -100,6 +100,9 @@ class CoreShell:
         ("date",   [],             "system","date",               "Show current date"),
         ("time",   [],             "system","time",               "Show current time"),
         ("uptime", [],             "system","uptime",             "Show how long this session has run"),
+        ("ps",     ["proc", "procs"], "system","ps [aux]",          "List running processes"),
+        ("top",    ["htop"],       "system","top",                "Live process monitor (Enter refreshes, q quits)"),
+        ("kill",   [],             "system","kill [-9] <pid>",    "Terminate a process by its PID"),
         ("ver",    ["about"],      "system","ver",                "Show OS version / about"),
         ("save",   [],             "system","save",               "Save the virtual disk to host"),
         ("load",   [],             "system","load",               "Reload the virtual disk from host"),
@@ -195,6 +198,8 @@ class CoreShell:
         self.uid = 1000          # effective user id (0 = root); set by _init_accounts
         self.accounts = {}       # username -> {pw, uid, admin, home}  (Phase 5)
         self.accounts_path = os.path.join(app_data_dir(), "phosphor_users.json")
+        self.procs = None        # process table, seeded lazily (Phase 6)
+        self._next_pid = 1000    # next PID handed out to a new process
         # build command dispatch (name/alias -> (handler, spec))
         self.commands = {}
         for primary, aliases, group, usage, desc in self.SPEC:
