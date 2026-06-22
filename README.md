@@ -64,10 +64,10 @@ Type `help` inside the OS for the full list, or `help <command>` for details.
 | Group | Commands |
 |-------|----------|
 | **Files** | `ls` `cd` `pwd` `tree` `mkdir` `rmdir` `touch` `write` `append` `cat` `rm` `cp` `mv` `find` `grep` `wc` `head` `tail` `sort` `nl` `edit` |
-| **Tools** | `python` `img2ascii` `calc` `banner` `echo` `rev` `upper` `lower` `roll` `flip` `morse` `leet` `rot13` `bases` `asciitable` |
-| **System** | `help` `clear` `theme` `sysinfo` `history` `alias` `unalias` `set` `unset` `run` `update` `scores` `setname` `whoami` `date` `time` `uptime` `ver` `save` `load` `format` `reboot` `exit` |
-| **Toys** | `matrix` `hack` `cowsay` `fortune` `glitch` `8ball` `joke` `rainbow` `slot` `fire` `aquarium` `clock` |
-| **Games** | `guess` `rps` `hangman` `ttt` `quiz` `wordle` |
+| **Tools** | `python` `img2ascii` `calc` `banner` `echo` `rev` `upper` `lower` `roll` `flip` `convert` `todo` `morse` `leet` `rot13` `bases` `asciitable` |
+| **System** | `help` `clear` `theme` `sysinfo` `history` `alias` `unalias` `set` `unset` `run` `update` `pkg` `secrets` `scores` `setname` `whoami` `date` `time` `uptime` `ver` `save` `load` `format` `reboot` `exit` |
+| **Toys** | `matrix` `hack` `cowsay` `fortune` `glitch` `8ball` `joke` `rainbow` `slot` `fire` `aquarium` `clock` `screensaver` |
+| **Games** | `guess` `rps` `hangman` `ttt` `quiz` `wordle` `2048` `minesweeper` `blackjack` |
 
 ## The shell
 
