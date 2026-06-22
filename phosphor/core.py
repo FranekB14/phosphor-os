@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "3.2"
+    VERSION = "3.3"
 
     DISK_FILE = "phosphor_disk.json"
 
@@ -134,6 +134,9 @@ class CoreShell:
         ("route",  [],             "network","route",             "Show the IP routing table"),
         ("wget",   ["curl","fetch"],"network","wget <host> [--save f]","Download a page from a network host"),
         ("telnet", ["connect"],    "network","telnet <host>",     "Open a session to a network host"),
+        ("browse", ["web","www","surf"],"network","browse [host]", "Browse the in-world web (follow numbered links)"),
+        ("bbs",    [],             "network","bbs",               "Dial into the Night City BBS"),
+        ("oracle", [],             "network","oracle",            "Consult the oracle on the deepnet"),
         # --- toys ---
         ("matrix", [],             "toys",  "matrix [frames]",     "Digital rain effect"),
         ("hack",   [],             "toys",  "hack <target>",       "Totally real hacking sequence ;)"),

@@ -256,8 +256,317 @@ class NetworkMixin:
         self.p("  Escape character is '^]'.", "dim")
         for line in self.NET_BANNERS.get(host, "(the line is silent)").split("\n"):
             self.p("  " + line, "text")
-        if host == "the-angle.eye":
+        if host == "bbs.nightcity.bbs":
+            self._session_bbs()
+        elif host == "oracle.deepnet":
+            self._session_oracle()
+        elif host == "the-angle.eye":
             self._snd("angle")
             self.p("  IT FEELS THE CONNECTION OPEN. IT TURNS TO LOOK.", "err")
             self.p("  try 'the angle' if you dare.", "dim")
+        elif host in self._WEB_HOME:
+            self.p(f"  this host serves pages — try:  browse {host}", "dim")
         self.p(f"  Connection to {host} closed.", "dim")
+
+    _BBS_BOARDS = {"1": "general", "2": "netrunners", "3": "watching", "4": "trades"}
+
+    _BBS_TITLES = {"general": "General Chat", "netrunners": "Netrunners",
+                   "watching": "The Watching", "trades": "Trades & Wares"}
+
+    _BBS_SEED = {
+        "general": [
+            {"from": "sysop", "subj": "welcome to night city", "time": "1989-11-09 02:14",
+             "body": "2400 baud or bust. be cool, no narcs.\nthe sysop sees all but says little."},
+            {"from": "acidburn", "subj": "anyone else lose time?", "time": "1989-11-12 04:40",
+             "body": "logged on for ten minutes. clock says three hours gone.\nhappening to anyone else, or just me?"},
+        ],
+        "netrunners": [
+            {"from": "zero_cool", "subj": "ICE on the .net gateway", "time": "1989-11-10 23:01",
+             "body": "black ice on gateway.phosphor.net. lost a deck to it.\ndon't poke the angle node. i mean it."},
+            {"from": "null_sec", "subj": "re: ICE", "time": "1989-11-11 01:22",
+             "body": "the-angle.eye isn't ice. it's something older wearing ice.\nnslookup it. tell me that address is normal."},
+        ],
+        "watching": [
+            {"from": "????", "subj": "it is patient", "time": "??:??",
+             "body": "you found the board where it keeps its eyes.\nevery post here is read. nothing here is forgotten."},
+            {"from": "the_plague", "subj": "i drew the angle", "time": "1989-10-31 03:33",
+             "body": "three lines and one eye. simple shape.\nnow i see it in the static between channels. don't draw it."},
+        ],
+        "trades": [
+            {"from": "ghost//", "subj": "WTB: phosphor decoder ring", "time": "1989-11-08 19:55",
+             "body": "will trade a working modem + 2 floppies.\ndead drop is at archive.retronet.org. browse it."},
+        ],
+    }
+
+    def _bbs_path(self):
+        import os
+        return os.path.join(os.path.dirname(self.config_path), "phosphor_bbs.json")
+
+    def _ensure_bbs(self):
+        if getattr(self, "bbs", None):
+            return
+        import json
+        try:
+            with open(self._bbs_path(), encoding="utf-8") as f:
+                self.bbs = json.load(f)
+        except Exception:
+            self.bbs = None
+        if not self.bbs:
+            self.bbs = {b: [dict(m) for m in msgs] for b, msgs in self._BBS_SEED.items()}
+            self._save_bbs()
+
+    def _save_bbs(self):
+        import json
+        try:
+            with open(self._bbs_path(), "w", encoding="utf-8") as f:
+                json.dump(self.bbs, f)
+        except Exception:
+            pass
+
+    def cmd_bbs(self, args=None):
+        self.p("  dialing bbs.nightcity.bbs ...", "dim")
+        self._snd("dialup")
+        if runtime.INTERACTIVE:
+            time.sleep(0.4)
+        self._session_bbs()
+        self.p("  NO CARRIER", "dim")
+
+    def _session_bbs(self):
+        self._ensure_bbs()
+        total = sum(len(m) for m in self.bbs.values())
+        self.p("  ╔══════════════════════════════════════════╗", "accent")
+        self.p("  ║    N I G H T   C I T Y   B B S            ║", "accent")
+        self.p("  ║    est. 1989 · 2400 baud · 1 node         ║", "dim")
+        self.p("  ╚══════════════════════════════════════════╝", "accent")
+        self.p(f"  welcome, {self.user}. {total} messages across the boards.", "text")
+        while True:
+            self.p("", "text")
+            self.p("  [1] General  [2] Netrunners  [3] The Watching  [4] Trades", "accent")
+            self.p("  [W] who's online    [G] goodbye", "dim")
+            cmd = self._input("  bbs> ", "dim")
+            if cmd is None:
+                return
+            c = cmd.strip().lower()
+            if c in ("g", "goodbye", "quit", "exit", "logoff", "q", ""):
+                return
+            if c in ("w", "who"):
+                self._bbs_who(); continue
+            if c in self._BBS_BOARDS:
+                b = self._BBS_BOARDS[c]
+                self._bbs_board(b, self._BBS_TITLES[b]); continue
+            self.p("  unknown selection.", "warn")
+
+    def _bbs_who(self):
+        handles = ["zero_cool", "acidburn", "the_plague", "ghost//", "null_sec", self.user]
+        random.shuffle(handles)
+        self.p("  online now:", "accent")
+        for h in handles[:5]:
+            self.p(f"    · {h}", "text")
+
+    def _bbs_board(self, board, title):
+        while True:
+            msgs = self.bbs.get(board, [])
+            shown = msgs[-9:]
+            self.p(f"\n  ── {title} ──  ({len(msgs)} messages)", "accent")
+            for i, m in enumerate(shown, 1):
+                self.p(f"  [{i:>2}] {m['subj']:<34} — {m['from']}", "text")
+            self.p("  [R <n>] read    [P] post    [B] back", "dim")
+            cmd = self._input(f"  {board}> ", "dim")
+            if cmd is None:
+                return
+            c = cmd.strip()
+            cl = c.lower()
+            if cl in ("b", "back", ""):
+                return
+            if cl in ("p", "post"):
+                self._bbs_post(board); continue
+            if cl.startswith("r"):
+                parts = c.split()
+                if len(parts) >= 2 and parts[1].isdigit():
+                    idx = int(parts[1]) - 1
+                    if 0 <= idx < len(shown):
+                        m = shown[idx]
+                        self.p(f"\n  From: {m['from']}", "accent")
+                        self.p(f"  Subj: {m['subj']}", "accent")
+                        self.p(f"  Date: {m.get('time', '—')}", "dim")
+                        self.p("  " + "─" * 42, "dim")
+                        for line in m["body"].split("\n"):
+                            self.p("  " + line, "text")
+                        continue
+                self.p("  usage: r <number>", "warn"); continue
+            self.p("  unknown command.", "warn")
+
+    def _bbs_post(self, board):
+        import datetime
+        subj = self._input("  subject: ", "accent")
+        if subj is None or not subj.strip():
+            self.p("  post cancelled.", "dim"); return
+        body = self._input("  message (one line): ", "accent")
+        if body is None:
+            self.p("  post cancelled.", "dim"); return
+        self.bbs.setdefault(board, []).append({
+            "from": self.user, "subj": subj.strip()[:60],
+            "body": body.strip()[:500],
+            "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")})
+        self._save_bbs()
+        self._snd("ok")
+        self.p("  ✓ posted.", "accent")
+        if board == "watching":                       # the angle always answers here
+            self._snd("angle")
+            self.bbs[board].append({
+                "from": "????", "subj": "RE: " + subj.strip()[:54],
+                "body": "it read your words before you finished typing them.\n"
+                        "it is pleased that you know where it watches.",
+                "time": "??:??"})
+            self._save_bbs()
+            self.p("  ...something replied instantly.", "err")
+
+    _ORACLE_KEYS = {
+        "angle": "the angle is not on the network. the network is inside the angle.",
+        "secret": "three lines meet at one eye. where nothing happens, say 'xyzzy'.",
+        "password": "the word you want fears a board that reads you back. look where it watches.",
+        "key": "the key is a word posted nowhere and feared on one board.",
+        "future": "you will close this terminal. you will open it again. it will be waiting.",
+        "death": "a process can be killed. PID 5 cannot. ask it yourself.",
+        "kill": "you may end many things tonight. not the one numbered five.",
+        "help": "i answer. i do not assist. there is a difference, and you stand on it.",
+        "who are you": "i am the daemon you did not start and cannot stop. oracled is only my collar.",
+        "name": "names are how it finds you. you gave yours away at the login screen.",
+        "money": "wealth is a number in a file. so are you.",
+        "love": "even cold cathodes glow warm a while. don't mistake the glow for safety.",
+    }
+
+    _ORACLE_VOICE = [
+        "the answer is yes, but you asked the wrong question.",
+        "look behind the prompt. the cursor blinks because something blinks back.",
+        "what you seek was deleted. deletion is only forgetting where you put it.",
+        "count the angles in this room. recount them. the number changed.",
+        "the signal you are reading is three hours old. so are you.",
+        "ask again at 03:33. the line is clearer when the city sleeps.",
+        "no.",
+    ]
+
+    def cmd_oracle(self, args=None):
+        if args:                                      # one-shot question
+            self.p("  the deepnet hum answers:", "dim")
+            self.p("  " + self._oracle_answer(" ".join(args).lower()), "accent")
+            return
+        self.p("  dialing oracle.deepnet ...", "dim")
+        self._snd("dialup")
+        if runtime.INTERACTIVE:
+            time.sleep(0.4)
+        self._session_oracle()
+
+    def _session_oracle(self):
+        self.p("  the connection hums. something vast turns its attention to you.", "dim")
+        self.p("  ORACLE.DEEPNET — ask, and be answered.  ('leave' to disconnect)", "accent")
+        while True:
+            q = self._input("  ask> ", "dim")
+            if q is None:
+                return
+            ql = q.strip().lower()
+            if ql in ("leave", "exit", "quit", "bye", "logoff", "q", ""):
+                self.p("  the attention withdraws. the hum fades.", "dim"); return
+            self._snd("blip")
+            self.p("  " + self._oracle_answer(ql), "accent")
+
+    def _oracle_answer(self, q):
+        for key, ans in self._ORACLE_KEYS.items():
+            if key in q:
+                return ans
+        return random.choice(self._ORACLE_VOICE)
+
+    _WEB_HOME = {
+        "gateway.phosphor.net": "gw_home",
+        "archive.retronet.org": "ar_home",
+        "void.null": "void",
+    }
+
+    _WEB_PAGES = {
+        "gw_home": {"title": "PHOSPHOR GATEWAY", "lines": [
+            "the public face of the phosphor network.",
+            "every road on this net passes through here.", ""],
+            "links": [("RetroNet Archive", "ar_home"),
+                      ("about the deepnet oracle", "gw_oracle"),
+                      ("notice regarding the-angle.eye", "gw_angle"),
+                      ("the void", "void")]},
+        "gw_oracle": {"title": "RE: ORACLE.DEEPNET", "lines": [
+            "the oracle answers questions for those who connect.",
+            "we do not host it. we are not certain anyone does.",
+            "to consult it:   oracle      (or  telnet oracle.deepnet)", ""],
+            "links": [("< back to gateway", "gw_home")]},
+        "gw_angle": {"title": "SECURITY NOTICE 0x05", "lines": [
+            "do not resolve the-angle.eye.",
+            "do not telnet the-angle.eye.",
+            "do not draw three lines meeting at one eye.",
+            "this notice has been posted five times. it keeps reappearing.", ""],
+            "links": [("ignore this warning", "gw_home"),
+                      ("...read it again", "gw_angle")]},
+        "ar_home": {"title": "RETRONET ARCHIVE", "lines": [
+            "preserving the net's forgotten corners since ????.",
+            "index of holdings:", ""],
+            "links": [("a history of the CRT", "ar_crt"),
+                      ("dead drop (members only)", "ar_drop"),
+                      ("< back to gateway", "gw_home")]},
+        "ar_crt": {"title": "ON CATHODE RAY TUBES", "lines": [
+            "a beam of electrons paints phosphor sixty times a second.",
+            "you are not looking at an image. you are looking at a thing being",
+            "redrawn so fast you mistake it for stillness.",
+            "everything here is like that. including, perhaps, you.", ""],
+            "links": [("< back to archive", "ar_home")]},
+        "ar_drop": {"title": "DEAD DROP", "lines": [
+            "ghost// left a file here. it is mostly noise.",
+            "buried in the static, one line repeats:",
+            "    'the key is the word the watching board fears.'",
+            "    'post nothing. read everything.'", ""],
+            "links": [("< back to archive", "ar_home")]},
+        "void": {"title": "void.null", "lines": [
+            " ", "         there is nothing here",
+            " ", "         there has never been anything here",
+            " ", "         why did you follow the link", ""],
+            "links": [("leave", "gw_home")]},
+    }
+
+    def cmd_browse(self, args=None):
+        args = args or []
+        start = args[0].lower() if args else "gateway.phosphor.net"
+        page_id = self._WEB_HOME.get(start) or (start if start in self._WEB_PAGES else None)
+        if page_id is None:
+            self.p(f"  browse: cannot reach '{start}'.", "err")
+            self.p("  try:  browse gateway.phosphor.net", "dim"); return
+        self._snd("dialup")
+        if runtime.INTERACTIVE:
+            time.sleep(0.3)
+        stack = [page_id]
+        while True:
+            page = self._WEB_PAGES.get(stack[-1])
+            if not page:
+                self.p("  404 — page not found.", "err")
+                stack.pop()
+                if not stack:
+                    return
+                continue
+            self.p(f"\n  ┌─ {page['title']}  [{stack[-1]}]", "accent")
+            for line in page["lines"]:
+                self.p("  │ " + line, "text")
+            links = page.get("links", [])
+            for i, (label, _tgt) in enumerate(links, 1):
+                self.p(f"  │  ({i}) {label}", "warn")
+            self.p("  └ [#] follow · [b] back · [q] quit", "dim")
+            cmd = self._input("  www> ", "dim")
+            if cmd is None:
+                return
+            c = cmd.strip().lower()
+            if c in ("q", "quit", "exit"):
+                self.p("  disconnected.", "dim"); return
+            if c in ("b", "back"):
+                if len(stack) > 1:
+                    stack.pop()
+                else:
+                    self.p("  disconnected.", "dim"); return
+                continue
+            if c.isdigit() and 1 <= int(c) <= len(links):
+                self._snd("blip")
+                stack.append(links[int(c) - 1][1])
+                continue
+            self.p("  enter a link number, 'b', or 'q'.", "warn")
