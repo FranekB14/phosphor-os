@@ -76,6 +76,37 @@ command.)*
 If Tkinter is missing, PHOSPHOR-OS falls back to running inside your existing
 terminal automatically.
 
+### Option C — install from the command line (bash)
+
+One command downloads the whole project and drops it into a `phosphor-os/`
+folder. It needs `curl` and `tar` (both standard on macOS, Linux, and Git Bash /
+WSL on Windows). Set `DEST` to wherever you want it installed:
+
+```bash
+DEST="$HOME"                                   # the folder to install into
+mkdir -p "$DEST" && \
+curl -fsSL https://codeload.github.com/FranekB14/phosphor-os/tar.gz/refs/heads/main \
+  | tar -xz -C "$DEST" && \
+rm -rf "$DEST/phosphor-os" && mv "$DEST/phosphor-os-main" "$DEST/phosphor-os" && \
+echo "✓ Installed to $DEST/phosphor-os"
+```
+
+Then run it:
+
+```bash
+cd "$DEST/phosphor-os" && python phosphor_os.py
+```
+
+Prefer `git`? This does the same thing in one step:
+
+```bash
+git clone https://github.com/FranekB14/phosphor-os.git phosphor-os
+```
+
+Either way you end up with a `phosphor-os/` folder containing everything —
+`phosphor_os.py`, the `phosphor/` package, `VERSION`, the `PhosphorOS.exe`, the
+README, and the licence.
+
 ---
 
 ## Updating
