@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "2.6"
+    VERSION = "2.6.1"
 
     DISK_FILE = "phosphor_disk.json"
 

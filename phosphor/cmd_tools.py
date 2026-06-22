@@ -27,14 +27,38 @@ from .helpers import *
 class ToolsMixin:
     def cmd_python(self, args=None):
         import code
-        self.p("  Entering Python. Type exit() or Ctrl-D to return to PHOSPHOR-OS.", "accent")
+        self.p(f"  Python {platform.python_version()} on PHOSPHOR-OS", "dim")
+        self.p("  Type exit() (or an empty line at Ctrl-D) to return to the shell.", "accent")
         self.p("  Tip: the running OS is available as the variable `os_sim`.", "dim")
-        banner = self.c(f"  Python {platform.python_version()} on PHOSPHOR-OS", "dim")
         ns = {"os_sim": self, "__name__": "__phosphor__"}
-        try:
-            code.InteractiveConsole(locals=ns).interact(banner=banner, exitmsg="  ...returning to shell.")
-        except SystemExit:
-            pass
+        console = code.InteractiveConsole(locals=ns)
+        more = False
+        while True:
+            line = self._input("  ... " if more else "  >>> ", "dim")
+            if line is None:                       # EOF / Ctrl-D / cancel
+                self.p("  ...returning to shell.", "dim"); return
+            if not more and line.strip() in ("exit", "exit()", "quit", "quit()"):
+                self.p("  ...returning to shell.", "dim"); return
+            # Capture whatever the executed line prints (results, errors, output)
+            # so it shows up here instead of going to the real stdout/stderr —
+            # those may be the wrong streams (GUI) or None (windowed .exe).
+            buf = io.StringIO()
+            saved_out, saved_err = sys.stdout, sys.stderr
+            sys.stdout = sys.stderr = buf
+            try:
+                more = console.push(line)
+            except SystemExit:
+                sys.stdout, sys.stderr = saved_out, saved_err
+                self.p("  ...returning to shell.", "dim"); return
+            except Exception as e:
+                more = False
+                buf.write(f"{type(e).__name__}: {e}\n")
+            finally:
+                sys.stdout, sys.stderr = saved_out, saved_err
+            out = buf.getvalue()
+            if out:
+                for ln in out.rstrip("\n").split("\n"):
+                    self.p(ln, "text")
 
     def cmd_img2ascii(self, args):
         if not args:

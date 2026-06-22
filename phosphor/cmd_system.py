@@ -200,14 +200,34 @@ class SystemMixin:
         nums = re.findall(r"\d+", s or "")
         return tuple(int(n) for n in nums) if nums else (0,)
 
-    def _install_dir(self):
-        """Folder the running program lives in (where files get replaced)."""
+    def _launcher_dir(self):
+        """The folder the launcher (.py or .exe) is sitting in."""
+        if getattr(sys, "frozen", False):
+            return os.path.dirname(os.path.abspath(sys.executable))
         try:
             base = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else __file__
         except Exception:
             base = os.getcwd()
-        d = os.path.dirname(base)
-        return d or os.getcwd()
+        return os.path.dirname(base) or os.getcwd()
+
+    def _updatable_root(self):
+        """Folder that holds the replaceable phosphor/ package on real disk,
+        or None if the code is frozen *inside* the executable (can't be
+        replaced). A launcher .exe with a loose phosphor/ folder beside it is
+        updatable; a fully-bundled --onefile exe is not."""
+        try:
+            import phosphor
+            pkg_file = os.path.abspath(phosphor.__file__)
+        except Exception:
+            return self._launcher_dir()          # single-file build / monolith
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass and pkg_file.startswith(os.path.abspath(meipass)):
+            return None                          # bundled inside the exe
+        return os.path.dirname(os.path.dirname(pkg_file))  # parent of phosphor/
+
+    def _install_dir(self):
+        """Folder the running program lives in (where files get replaced)."""
+        return self._updatable_root() or self._launcher_dir()
 
     def _http_get(self, url, timeout=20):
         req = urllib.request.Request(url, headers={"User-Agent": "PHOSPHOR-OS-updater"})
@@ -241,9 +261,11 @@ class SystemMixin:
                 self.update_branch = branch
                 self.save_config()
 
-        if _is_frozen():
-            self.p("  This is a packaged .exe build -- self-update can't replace its own", "warn")
-            self.p("  bundled files. Download the new .exe from the releases page instead.", "warn")
+        if self._updatable_root() is None:
+            self.p("  This .exe has all the code bundled inside it, so it can't", "warn")
+            self.p("  replace itself. To enable self-update, build it as a launcher", "warn")
+            self.p("  with a loose phosphor/ folder beside the .exe (see the build", "warn")
+            self.p("  notes), or download the new build manually.", "warn")
             return
         if "/" not in repo or repo.startswith("your-username/"):
             self.p("  No GitHub repo configured yet.", "warn")

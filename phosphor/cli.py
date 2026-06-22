@@ -50,8 +50,13 @@ def main_entry():
         try:
             launch_gui()
             sys.exit(0)
+        except SystemExit:
+            raise
         except Exception as e:
-            print(f"GUI could not start ({e}); falling back to console.\n")
+            try:
+                print(f"GUI could not start ({e}); falling back to console.\n")
+            except Exception:
+                pass
 
     # Console mode (explicit --console/--here, no display, or GUI failed).
     if not use_console and relaunch_in_new_window():
