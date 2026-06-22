@@ -57,7 +57,104 @@ class SystemMixin:
             self.p(f"\n  ── {titles[g]} " + "─" * (46 - len(titles[g])), "accent")
             for primary, desc in groups[g]:
                 self.p(f"    {primary:<11} {desc}", "text")
-        self.p("\n  Tip: 'help <command>' shows usage + aliases.", "dim")
+        self.p("\n  Tip: 'help <command>' shows usage + aliases. 'man <command>' for a full page.", "dim")
+
+    MANPAGES = {
+        "ls": ("Lists the contents of a directory. With no path it lists the current "
+               "directory. Add -l for a long listing that shows permission bits, "
+               "owner and size.",
+               ["ls", "ls /home", "ls -l"]),
+        "cd": ("Changes the current directory. '..' goes up, '/' is the root, and '~' "
+               "is your home directory. With no argument it returns you home.",
+               ["cd /etc", "cd ..", "cd ~"]),
+        "cat": ("Prints the contents of one or more files. You need read permission "
+                "on the file; protected files require sudo.",
+                ["cat notes.txt", "cat /etc/shadow"]),
+        "grep": ("Searches for text in a file, or in whatever is piped into it.",
+                 ["grep error log.txt", "cat log.txt | grep error"]),
+        "python": ("Drops into a real Python interpreter running inside the OS. The "
+                   "live system is exposed as the variable os_sim. exit() returns.",
+                   ["python", ">>> os_sim.VERSION"]),
+        "sudo": ("Runs a single command with root privileges. Your account must be an "
+                 "admin. Use it to reach files that your user can't touch.",
+                 ["sudo cat /etc/shadow", "sudo ls /root"]),
+        "su": ("Switches to another user (root if none is named). root and admin "
+               "accounts have full access to everything.",
+               ["su", "su root", "su alice"]),
+        "login": ("Logs in as a user, asking for a password if one is set. A login "
+                  "screen also appears at startup once any account has a password.",
+                  ["login", "login alice"]),
+        "passwd": ("Sets or changes a password. With no name it changes your own. "
+                   "Setting any password turns on the startup login screen.",
+                   ["passwd", "passwd alice"]),
+        "chmod": ("Changes a file's permission bits, given as an octal number "
+                  "(owner/group/other, each r=4 w=2 x=1).",
+                  ["chmod 600 secret.txt", "chmod 755 script.sh"]),
+        "chown": ("Changes the owner of a file (admin only).",
+                  ["chown alice notes.txt"]),
+        "ipconfig": ("Shows your network configuration, including your real public IP "
+                     "address — which is your VPN's exit IP when a VPN is connected.",
+                     ["ipconfig"]),
+        "ping": ("Pings a host on the simulated network and reports latency.",
+                 ["ping gateway.phosphor.net", "ping oracle.deepnet"]),
+        "wget": ("Downloads a page from a host on the simulated network; --save writes "
+                 "it to a file on the virtual disk.",
+                 ["wget archive.retronet.org", "wget oracle.deepnet --save page.txt"]),
+        "telnet": ("Opens a session to a host on the simulated network. Some hosts are "
+                   "friendlier than others.",
+                   ["telnet bbs.nightcity.bbs", "telnet the-angle.eye"]),
+        "update": ("Updates PHOSPHOR-OS from its GitHub home, backing up the current "
+                   "version first, then asks you to restart.",
+                   ["update", "update --check"]),
+        "theme": ("Changes the color scheme. Your choice is remembered.",
+                  ["theme amber", "theme phosphor"]),
+        "screensaver": ("Opens a fullscreen screensaver; any key closes it. 'list' "
+                        "shows them all.",
+                        ["screensaver", "screensaver plasma", "screensaver list"]),
+        "run": ("Runs a file of commands as a batch script, one line at a time.",
+                ["run setup.bat"]),
+        "alias": ("Lists aliases, or defines one (saved between sessions).",
+                  ["alias", "alias ll=\"ls -l\""]),
+        "set": ("Lists environment variables, or sets one. Use $NAME to expand it.",
+                ["set", "set NAME=value", "echo $NAME"]),
+        "edit": ("Opens a simple line editor for a file. '?' shows editor help.",
+                 ["edit notes.txt"]),
+        "img2ascii": ("Converts an image file into ASCII art. Needs the Pillow library.",
+                      ["img2ascii pic.jpg 100 --color"]),
+    }
+
+    def cmd_man(self, args=None):
+        import textwrap
+        args = args or []
+        if not args:
+            self.p("usage: man <command>    (e.g. man ls)", "warn"); return
+        name = args[0].lower()
+        entry = self.commands.get(name)
+        if not entry:
+            self.p(f"  no manual entry for '{name}'  (try 'help')", "err"); return
+        primary, group, usage, desc = entry[1]
+        aliases = sorted(n for n, (h, m) in self.commands.items()
+                         if m[0] == primary and n != primary)
+        page = self.MANPAGES.get(primary)
+        longdesc = page[0] if page else desc + "."
+        examples = page[1] if page else []
+        self.p(f"  ┌─ PHOSPHOR-OS MANUAL ──  {primary}", "accent")
+        self.p("  NAME", "accent")
+        self.p(f"      {primary} — {desc}", "text")
+        self.p("  SYNOPSIS", "accent")
+        self.p(f"      {usage}", "text")
+        self.p("  DESCRIPTION", "accent")
+        for line in textwrap.wrap(longdesc, 64):
+            self.p("      " + line, "text")
+        if examples:
+            self.p("  EXAMPLES", "accent")
+            for ex in examples:
+                self.p("      " + ex, "dim")
+        if aliases:
+            self.p("  ALIASES", "accent")
+            self.p("      " + ", ".join(aliases), "dim")
+        self.p("  SECTION", "accent")
+        self.p(f"      {group}", "dim")
 
     def cmd_clear(self, args=None):
         # ANSI clear works in real terminals AND in the GUI emulator.

@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "2.9"
+    VERSION = "3.0"
 
     DISK_FILE = "phosphor_disk.json"
 
@@ -79,8 +79,9 @@ class CoreShell:
         ("convert",["conv","unit"],"tools", "convert <n> <from> <to>", "Convert units (length / weight / temp)"),
         ("todo",   ["task","tasks"],"tools","todo [add|done|rm|clear]", "A simple saved to-do list"),
         # --- system ---
-        ("help",   ["?", "man"],   "system","help [command]",     "Show commands or help for one command"),
+        ("help",   ["?"],          "system","help [command]",     "Show commands or help for one command"),
         ("clear",  ["cls"],        "system","clear",              "Clear the screen"),
+        ("man",    ["manual"],     "system","man <command>",      "Show the manual page for a command"),
         ("theme",  ["color"],      "system","theme [name]",       "Change color theme"),
         ("sysinfo",["neofetch"],   "system","sysinfo",            "Show a stylized system info panel"),
         ("history",[],             "system","history",            "Show command history"),
@@ -158,6 +159,9 @@ class CoreShell:
         ("2048",   [],             "games", "2048",                "Slide and merge tiles to reach 2048"),
         ("minesweeper", ["mines"], "games", "minesweeper",         "Clear the field without hitting a mine"),
         ("blackjack", ["21"],      "games", "blackjack",           "Beat the dealer to 21 without busting"),
+        ("snake",  [],             "games", "snake",               "Steer the snake, eat, grow, don't crash"),
+        ("tetris", [],             "games", "tetris",              "Stack falling blocks and clear lines"),
+        ("solitaire", ["klondike"],"games", "solitaire",           "Klondike solitaire with a deck of cards"),
     ]
 
     def __init__(self, input_fn=input):

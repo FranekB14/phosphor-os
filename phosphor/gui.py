@@ -377,9 +377,10 @@ def launch_gui():
             self._saver_render = render
             self._saver_state = {}
             self._saver_dims = (0, 0)
-            self._saver_rects = []
+            self._saver_items = []
             self._saver_prev = []
             self._saver_after = None
+            self._saver_font = tkfont.Font(family=FONT[0], size=14)
             top = tk.Toplevel(self.root)
             top.title("PHOSPHOR-OS — screensaver")
             top.configure(bg="black")
@@ -416,15 +417,15 @@ def launch_gui():
             W, H, pw, ph = self._saver_grid_size()
             cv.delete("all")
             self._saver_dims = (W, H)
-            self._saver_rects = [[None] * W for _ in range(H)]
-            self._saver_prev = [["#000000"] * W for _ in range(H)]
+            self._saver_items = [[None] * W for _ in range(H)]
+            self._saver_prev = [[("", "") for _ in range(W)] for _ in range(H)]
             cw = pw / W; chh = ph / H
+            self._saver_font.configure(size=max(8, int(chh * 0.82)))
             for y in range(H):
-                ry = self._saver_rects[y]; y0 = y * chh
+                iy = self._saver_items[y]; cy = y * chh + chh / 2
                 for x in range(W):
-                    x0 = x * cw
-                    ry[x] = cv.create_rectangle(x0, y0, x0 + cw + 1, y0 + chh + 1,
-                                                fill="#000000", outline="")
+                    iy[x] = cv.create_text(x * cw + cw / 2, cy, text="",
+                                           fill="#000000", font=self._saver_font)
             self._saver_state = {}                  # restart the animation at the new size
 
         def _tick_saver(self):
@@ -436,20 +437,24 @@ def launch_gui():
                 self._build_saver_grid()
             W, H = self._saver_dims
             try:
-                _chars, colors = self._saver_render(self._saver_state, W, H)
+                chars, colors = self._saver_render(self._saver_state, W, H)
             except Exception:
+                chars = [[" "] * W for _ in range(H)]
                 colors = [[None] * W for _ in range(H)]
-            rects = self._saver_rects; prev = self._saver_prev; cfg = cv.itemconfigure
+            items = self._saver_items; prev = self._saver_prev; cfg = cv.itemconfigure
             for y in range(H):
-                crow = colors[y]; prow = prev[y]; rrow = rects[y]
+                crow = chars[y]; colrow = colors[y]; prow = prev[y]; irow = items[y]
                 for x in range(W):
-                    col = crow[x]
-                    fill = ("#%02x%02x%02x" % col) if col else "#000000"
-                    if fill != prow[x]:             # only touch cells that changed
-                        cfg(rrow[x], fill=fill)
-                        prow[x] = fill
+                    col = colrow[x]
+                    cell = (crow[x], "#%02x%02x%02x" % col) if col else ("", "")
+                    if cell != prow[x]:             # only touch cells that changed
+                        if cell[0]:
+                            cfg(irow[x], text=cell[0], fill=cell[1])
+                        else:
+                            cfg(irow[x], text="")
+                        prow[x] = cell
             cells = W * H
-            delay = 45 if cells < 2200 else 65 if cells < 4000 else 90
+            delay = 45 if cells < 1800 else 70 if cells < 3200 else 100
             self._saver_after = top.after(delay, self._tick_saver)
 
         def _close_saver(self, e=None):

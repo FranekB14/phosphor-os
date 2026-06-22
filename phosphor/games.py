@@ -25,6 +25,249 @@ from .helpers import *
 
 
 class GamesMixin:
+    def cmd_snake(self, args=None):
+        W, H = 22, 11
+        snake = [(W // 2, H // 2), (W // 2 - 1, H // 2), (W // 2 - 2, H // 2)]
+        dirn = (1, 0)
+        food = self._snake_food(snake, W, H)
+        score = 0
+        self.p("  SNAKE — w/a/s/d to steer, Enter keeps going, q to quit.", "accent")
+        while True:
+            self._snake_draw(snake, food, W, H, score)
+            raw = self._input("  move> ", "dim")
+            if raw is None:
+                return
+            k = raw.strip().lower()[:1]
+            if k == "q":
+                self.p(f"  bye — length {len(snake)}.", "dim"); return
+            nd = {"w": (0, -1), "s": (0, 1), "a": (-1, 0), "d": (1, 0)}.get(k)
+            if nd and (nd[0] != -dirn[0] or nd[1] != -dirn[1]):
+                dirn = nd
+            hx, hy = snake[0]
+            nx, ny = hx + dirn[0], hy + dirn[1]
+            if nx < 0 or nx >= W or ny < 0 or ny >= H or (nx, ny) in snake[:-1]:
+                self._snake_draw(snake, food, W, H, score)
+                self.p(f"  ✖ GAME OVER — length {len(snake)}, score {score}.", "err")
+                if self.record_score("snake_best", score, "max"):
+                    self.p("  ★ new best!", "accent")
+                return
+            snake.insert(0, (nx, ny))
+            if (nx, ny) == food:
+                score += 1
+                food = self._snake_food(snake, W, H)
+            else:
+                snake.pop()
+
+    def _snake_food(self, snake, W, H):
+        empty = [(x, y) for x in range(W) for y in range(H) if (x, y) not in snake]
+        return random.choice(empty) if empty else (0, 0)
+
+    def _snake_draw(self, snake, food, W, H, score):
+        self.p(f"  ┌{'─' * W}┐  score {score}", "accent")
+        head, body = snake[0], set(snake[1:])
+        for y in range(H):
+            row = []
+            for x in range(W):
+                row.append("@" if (x, y) == head else
+                           "o" if (x, y) in body else
+                           "♦" if (x, y) == food else " ")
+            self.p("  │" + "".join(row) + "│", "text")
+        self.p(f"  └{'─' * W}┘", "accent")
+
+    _TETRO = {
+        "I": [(0, 0), (1, 0), (2, 0), (3, 0)], "O": [(0, 0), (1, 0), (0, 1), (1, 1)],
+        "T": [(0, 0), (1, 0), (2, 0), (1, 1)], "S": [(1, 0), (2, 0), (0, 1), (1, 1)],
+        "Z": [(0, 0), (1, 0), (1, 1), (2, 1)], "J": [(0, 0), (0, 1), (1, 1), (2, 1)],
+        "L": [(2, 0), (0, 1), (1, 1), (2, 1)],
+    }
+
+    _TETRO_COLOR = {"I": (0, 240, 240), "O": (240, 240, 0), "T": (200, 0, 240),
+                    "S": (0, 240, 0), "Z": (240, 0, 0), "J": (0, 0, 240), "L": (240, 160, 0)}
+
+    def cmd_tetris(self, args=None):
+        W, H = 10, 16
+        well = [[None] * W for _ in range(H)]
+
+        def collides(cells, ox, oy):
+            for cx, cy in cells:
+                x, y = ox + cx, oy + cy
+                if x < 0 or x >= W or y >= H:
+                    return True
+                if y >= 0 and well[y][x] is not None:
+                    return True
+            return False
+
+        def rotate(cells):
+            r = [(-cy, cx) for cx, cy in cells]
+            mnx, mny = min(c[0] for c in r), min(c[1] for c in r)
+            return [(cx - mnx, cy - mny) for cx, cy in r]
+
+        def spawn():
+            key = random.choice(list(self._TETRO))
+            return list(self._TETRO[key]), 3, 0, self._TETRO_COLOR[key]
+
+        cells, ox, oy, color = spawn()
+        score, lines = 0, 0
+        self.p("  TETRIS — a/d move · w rotate · s/Enter drop one · p hard-drop · q quit.", "accent")
+        while True:
+            self._tetris_draw(well, cells, ox, oy, color, score, lines, W, H)
+            raw = self._input("  > ", "dim")
+            if raw is None:
+                return
+            s = raw.strip().lower()
+            c = s[:1] if s else "s"
+            if c == "q":
+                self.p(f"  bye — {lines} lines, score {score}.", "dim"); return
+            if c == "a":
+                if not collides(cells, ox - 1, oy):
+                    ox -= 1
+            elif c == "d":
+                if not collides(cells, ox + 1, oy):
+                    ox += 1
+            elif c == "w":
+                r = rotate(cells)
+                if not collides(r, ox, oy):
+                    cells = r
+            else:                                  # drop: s/Enter = one row, p = hard
+                if c == "p":
+                    while not collides(cells, ox, oy + 1):
+                        oy += 1
+                elif not collides(cells, ox, oy + 1):
+                    oy += 1
+                if collides(cells, ox, oy + 1):    # resting -> lock it
+                    for cx, cy in cells:
+                        if 0 <= oy + cy < H:
+                            well[oy + cy][ox + cx] = color
+                    kept = [row for row in well if any(v is None for v in row)]
+                    cleared = H - len(kept)
+                    if cleared:
+                        lines += cleared
+                        score += (0, 40, 100, 300, 1200)[min(cleared, 4)]
+                        well = [[None] * W for _ in range(cleared)] + kept
+                    cells, ox, oy, color = spawn()
+                    if collides(cells, ox, oy):
+                        self._tetris_draw(well, cells, ox, oy, color, score, lines, W, H)
+                        self.p(f"  ✖ GAME OVER — {lines} lines, score {score}.", "err")
+                        if self.record_score("tetris_best", score, "max"):
+                            self.p("  ★ new best!", "accent")
+                        return
+
+    def _tetris_draw(self, well, cells, ox, oy, color, score, lines, W, H):
+        overlay = {(ox + cx, oy + cy): color for cx, cy in cells}
+        self.p(f"  ╔{'══' * W}╗   lines {lines}  score {score}", "accent")
+        for y in range(H):
+            row = "  ║"
+            for x in range(W):
+                col = overlay.get((x, y)) or well[y][x]
+                row += (rgb(*col) + "██" + RESET) if col else self.c(" .", "dim")
+            print(row + self.c("║", "accent"))
+        self.p(f"  ╚{'══' * W}╝", "accent")
+
+    def cmd_solitaire(self, args=None):
+        ranks = {1: "A", 11: "J", 12: "Q", 13: "K"}
+
+        def red(su):
+            return su in (1, 2)
+
+        def cstr(card):
+            rk, su, up = card
+            if not up:
+                return "##"
+            txt = f"{ranks.get(rk, str(rk))}{'♠♥♦♣'[su]}"
+            return (rgb(255, 90, 90) + txt + RESET) if red(su) else txt
+
+        deck = [(rk, su, False) for su in range(4) for rk in range(1, 14)]
+        random.shuffle(deck)
+        tableau = [[] for _ in range(7)]
+        for i in range(7):
+            for j in range(i + 1):
+                c = deck.pop()
+                tableau[i].append((c[0], c[1], j == i))
+        stock = [(c[0], c[1], False) for c in deck]
+        waste, found = [], [[] for _ in range(4)]
+
+        def can_tab(card, dest):
+            if not dest:
+                return card[0] == 13
+            top = dest[-1]
+            return top[2] and (red(card[1]) != red(top[1])) and card[0] == top[0] - 1
+
+        def can_found(card, su):
+            pile = found[su]
+            return card[1] == su and ((not pile and card[0] == 1) or
+                                      (pile and card[0] == pile[-1][0] + 1))
+
+        def flip(p):
+            if p and not p[-1][2]:
+                t = p[-1]; p[-1] = (t[0], t[1], True)
+
+        def board():
+            self.p("", "text")
+            f = "  ".join((cstr(found[s][-1]) if found[s] else "·" + "♠♥♦♣"[s]) for s in range(4))
+            self.p(f"  stock:{len(stock):>2}   waste: {cstr(waste[-1]) if waste else '--'}"
+                   f"      foundations: {f}", "accent")
+            self.p("  " + "─" * 52, "dim")
+            for i, pile in enumerate(tableau):
+                self.p(f"  {i + 1}: " + (" ".join(cstr(c) for c in pile) if pile else "·"), "text")
+
+        self.p("  KLONDIKE SOLITAIRE", "accent")
+        self.p("  moves: draw | wf (waste→foundation) | w3 (waste→pile 3) |", "dim")
+        self.p("         25 (pile 2→pile 5) | 3f (pile 3→foundation) | q quit", "dim")
+        while True:
+            board()
+            if all(len(found[s]) == 13 for s in range(4)):
+                self.p("  ★★★ YOU WIN — all 52 cards home! ★★★", "accent")
+                self.record_score("solitaire_wins", 1, "count")
+                return
+            raw = self._input("  move> ", "dim")
+            if raw is None:
+                return
+            m = raw.strip().lower().replace(" ", "")
+            if m in ("q", "quit"):
+                self.p("  game abandoned.", "dim"); return
+            if m in ("d", "draw"):
+                if stock:
+                    c = stock.pop(); waste.append((c[0], c[1], True))
+                elif waste:
+                    stock[:] = [(c[0], c[1], False) for c in reversed(waste)]; waste.clear()
+                else:
+                    self.p("  nothing to draw.", "warn")
+                continue
+            if m == "wf":
+                if waste and can_found(waste[-1], waste[-1][1]):
+                    found[waste[-1][1]].append(waste.pop())
+                else:
+                    self.p("  illegal move.", "err")
+                continue
+            if len(m) == 2 and m[0] == "w" and m[1].isdigit():
+                d = int(m[1]) - 1
+                if waste and 0 <= d < 7 and can_tab(waste[-1], tableau[d]):
+                    tableau[d].append(waste.pop())
+                else:
+                    self.p("  illegal move.", "err")
+                continue
+            if len(m) == 2 and m[0].isdigit() and m[1] == "f":
+                a = int(m[0]) - 1
+                if 0 <= a < 7 and tableau[a] and tableau[a][-1][2] and can_found(tableau[a][-1], tableau[a][-1][1]):
+                    found[tableau[a][-1][1]].append(tableau[a].pop()); flip(tableau[a])
+                else:
+                    self.p("  illegal move.", "err")
+                continue
+            if len(m) == 2 and m[0].isdigit() and m[1].isdigit():
+                a, b = int(m[0]) - 1, int(m[1]) - 1
+                if 0 <= a < 7 and 0 <= b < 7 and tableau[a]:
+                    fu = [i for i, c in enumerate(tableau[a]) if c[2]]
+                    start = fu[0] if fu else len(tableau[a])
+                    moved = tableau[a][start:]
+                    if moved and can_tab(moved[0], tableau[b]):
+                        tableau[b].extend(moved); del tableau[a][start:]; flip(tableau[a])
+                    else:
+                        self.p("  illegal move.", "err")
+                else:
+                    self.p("  illegal move.", "err")
+                continue
+            self.p("  ? unknown move — try: draw, wf, w3, 3f, 25, q", "warn")
+
     def cmd_guess(self, args=None):
         target = random.randint(1, 100)
         tries = 0

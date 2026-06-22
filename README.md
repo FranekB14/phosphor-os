@@ -93,7 +93,7 @@ exe is what makes this possible — no rebuild needed.
 
 ## Command reference
 
-There are **105 commands**. Type `help` inside the OS for the live list, or
+There are **113 commands**. Type `help` inside the OS for the live list, or
 `help <command>` for usage and aliases. Almost every command has short aliases
 (shown in parentheses).
 
@@ -149,7 +149,8 @@ There are **105 commands**. Type `help` inside the OS for the live list, or
 
 | Command | What it does |
 |---------|--------------|
-| `help` (?, man) | Show commands, or help for one command |
+| `help` (?) | Show commands, or help for one command |
+| `man` (manual) | Show the full manual page for a command |
 | `clear` (cls) | Clear the screen |
 | `theme` (color) | Change the color theme |
 | `sysinfo` (neofetch) | Show a stylized system-info panel |
@@ -236,6 +237,9 @@ There are **105 commands**. Type `help` inside the OS for the live list, or
 | `2048` | Slide and merge tiles to reach 2048 |
 | `minesweeper` (mines) | Clear the field without hitting a mine |
 | `blackjack` (21) | Beat the dealer to 21 without busting |
+| `snake` | Steer the snake, eat food, grow, don't crash |
+| `tetris` | Stack falling tetrominoes and clear lines |
+| `solitaire` (klondike) | Klondike solitaire with a full deck |
 
 ---
 
@@ -342,7 +346,7 @@ inline and wake on Ctrl-C instead.)
 ## Games & toys
 
 Nine games keep score across sessions (`scores` shows your bests): the classics
-plus `2048`, `minesweeper`, and `blackjack`. The toys are pure atmosphere —
+plus `2048`, `minesweeper`, `blackjack`, `snake`, `tetris`, and `solitaire`. The toys are pure atmosphere —
 `matrix` rain, a `fire`, an `aquarium`, a big ASCII `clock`, `cowsay`, `fortune`,
 the `slot` machine, `rainbow` text, and a fake `hack` sequence for showing off.
 
