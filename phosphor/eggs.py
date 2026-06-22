@@ -37,6 +37,11 @@ class EggsMixin:
         "42": "_egg_42",
         "hello world": "_egg_helloworld",
         "do a barrel roll": "_egg_barrelroll",
+        "gta 6": "_egg_bluescreen",
+        "gta6": "_egg_bluescreen",
+        "gta vi": "_egg_bluescreen",
+        "grand theft auto 6": "_egg_bluescreen",
+        "grand theft auto vi": "_egg_bluescreen",
     }
 
     def _egg_angle(self):
@@ -131,3 +136,46 @@ class EggsMixin:
                 time.sleep(0.08)
             print()
         self.p("  ↻ whee! ↺", "warn")
+
+    def _egg_bluescreen(self):
+        """A tongue-in-cheek Windows-style bluescreen, triggered by 'GTA 6'.
+        In the GUI it opens its own fullscreen window; in a console it paints
+        the screen blue with ANSI."""
+        bsod = getattr(self, "_gui_bsod", None)
+        if bsod:
+            self._snd("error")
+            self.p("  ░ a fatal exception 0xGTA6 has occurred ░", "dim")
+            bsod()                                 # fullscreen window; any key closes it
+            return
+        PRE = "\033[44m\033[38;2;255;255;255m"     # console: blue bg + white fg
+        self.cmd_clear()
+        print("\033[44m\033[2J\033[H", end="")
+        self._snd("error")
+
+        def w(line=""):
+            print(PRE + line)
+
+        w()
+        w("  :(")
+        w()
+        w("  Your PC ran into a problem and needs to restart. We're")
+        w("  just collecting some error info, and then we'll restart")
+        w("  for you.")
+        w()
+        if runtime.INTERACTIVE:
+            pct = 0
+            while pct < 100:
+                print(PRE + f"\r  {pct}% complete   ", end="", flush=True)
+                time.sleep(0.11)
+                pct = min(100, pct + random.choice([4, 7, 11, 15]))
+        print(PRE + "\r  100% complete   ")
+        w()
+        w("  For more information about this issue, search online for:")
+        w("  STOP CODE:  HYPE_OVERFLOW_0xGTA6")
+        w("  What failed:  vice_city.sys")
+        if runtime.INTERACTIVE:
+            time.sleep(2.0)
+        print("\033[0m", end="")
+        self.cmd_clear()
+        self.p("  ...relax. it was a joke — GTA 6 still isn't out.", "accent")
+        self.p("  (don't worry, there was no unsaved progress to lose.)", "dim")

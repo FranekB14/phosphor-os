@@ -223,6 +223,7 @@ def launch_gui():
             self.shell = Phosphor(input_fn=self._readline)
             self.shell._gui_saver = self._launch_saver   # screensaver opens its own window
             self.shell._gui_bell = lambda: self.root.after(0, self.root.bell)  # audible fallback
+            self.shell._gui_bsod = self._launch_bsod     # fullscreen bluescreen egg window
             self._stdout_orig = sys.stdout
             sys.stdout = _GuiStdout(self.out_q)
             self.thread = threading.Thread(target=self._run_shell, daemon=True)
@@ -366,6 +367,84 @@ def launch_gui():
             """Called from the shell thread -> hop to the main (Tk) thread."""
             try:
                 self.root.after(0, lambda: self._open_saver(name))
+            except Exception:
+                pass
+
+        def _launch_bsod(self):
+            """Open the bluescreen egg window (called from the shell thread)."""
+            try:
+                self.root.after(0, self._open_bsod)
+            except Exception:
+                pass
+
+        def _open_bsod(self):
+            if getattr(self, "_bsod_top", None):
+                return
+            import random as _r
+            BLUE = "#0a64c8"
+            top = tk.Toplevel(self.root)
+            top.title("")
+            top.configure(bg=BLUE)
+            try:
+                top.attributes("-fullscreen", True)
+            except Exception:
+                try:
+                    top.state("zoomed")
+                except Exception:
+                    pass
+            self._bsod_top = top
+            self._bsod_after = None
+            fam = FONT[0]
+            f_big = tkfont.Font(family=fam, size=110)
+            f_med = tkfont.Font(family=fam, size=22)
+            f_small = tkfont.Font(family=fam, size=14)
+            wrap = tk.Frame(top, bg=BLUE)
+            wrap.place(relx=0.5, rely=0.42, anchor="center")
+            tk.Label(wrap, text=":(", bg=BLUE, fg="white", font=f_big).pack(anchor="w")
+            tk.Label(wrap, bg=BLUE, fg="white", font=f_med, justify="left",
+                     text="Your PC ran into a problem and needs to restart. We're\n"
+                          "just collecting some error info, and then we'll restart for you.")\
+                .pack(anchor="w", pady=(24, 14))
+            self._bsod_pct = tk.Label(wrap, text="0% complete", bg=BLUE, fg="white",
+                                      font=f_med, justify="left")
+            self._bsod_pct.pack(anchor="w", pady=(0, 34))
+            tk.Label(wrap, bg=BLUE, fg="white", font=f_small, justify="left",
+                     text="For more information about this issue, search online for:\n"
+                          "STOP CODE:  HYPE_OVERFLOW_0xGTA6\n"
+                          "What failed:  vice_city.sys\n"
+                          "Estimated release:  when it's ready").pack(anchor="w")
+            tk.Label(top, text="(press any key to dismiss)", bg=BLUE, fg="#bcd8ff",
+                     font=f_small).place(relx=0.5, rely=0.95, anchor="center")
+
+            def tick(p=0):
+                if not getattr(self, "_bsod_top", None):
+                    return
+                try:
+                    self._bsod_pct.configure(text=f"{min(100, p)}% complete")
+                except Exception:
+                    return
+                if p < 100:
+                    self._bsod_after = top.after(130, lambda: tick(p + _r.randint(3, 13)))
+
+            tick(0)
+            for seq in ("<Key>", "<Button-1>", "<Button-2>", "<Button-3>"):
+                top.bind(seq, self._close_bsod)
+            top.protocol("WM_DELETE_WINDOW", self._close_bsod)
+            top.update_idletasks()
+            top.lift(); top.focus_force()
+
+        def _close_bsod(self, e=None):
+            top = getattr(self, "_bsod_top", None)
+            if not top:
+                return
+            self._bsod_top = None
+            try:
+                if self._bsod_after:
+                    top.after_cancel(self._bsod_after)
+            except Exception:
+                pass
+            try:
+                top.destroy()
             except Exception:
                 pass
 

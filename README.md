@@ -13,6 +13,10 @@ hidden in the dark.
 Everything runs on the Python standard library. The only optional dependency is
 Pillow, and only for one command.
 
+> Lightweight enough to run on practically anything. It can even run GTA 6.\*
+>
+> <sub>\* for certain values of "run".</sub>
+
 ---
 
 ## Contents
