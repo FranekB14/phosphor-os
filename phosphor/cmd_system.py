@@ -652,6 +652,7 @@ class SystemMixin:
             if not p:
                 self.p(f"  kill: ({pid}) - no such process", "err"); continue
             if p["name"] == "theangled":
+                self._log("theangled: termination signal received and ignored. it noticed you.")
                 self.p("  kill: theangled (5) will not die.", "err")
                 self.p("        it was watching long before you opened this terminal.", "dim")
                 continue
@@ -665,6 +666,8 @@ class SystemMixin:
                 continue
             name = p["name"]
             del self.procs[pid]
+            self._log(f"process {pid} ({name}) terminated by {self.user}" +
+                      (" (SIGKILL)" if force else ""))
             self.p(f"  terminated [{pid}] {name}" + ("  (SIGKILL)" if force else ""), "accent")
 
     _SOUNDFX = {
@@ -859,6 +862,157 @@ class SystemMixin:
         if not getattr(self, "sound_on", True):
             self.p("  (sound is OFF — turn it on with 'sound on')", "warn")
         self._snd_play(tune)
+
+    _BOOT_LOG = [
+        "[    0.000000] PHOSPHOR kernel booting...",
+        "[    0.001204] CPU: virtual 8-core @ 4.77 THz",
+        "[    0.004567] Memory: 640K available (ought to be enough)",
+        "[    0.012003] cathode-ray display initialized",
+        "[    0.034221] mounting virtual volume... ok",
+        "[    0.061180] netd: localhost interface up",
+        "[    0.090455] theangled: ATTACHED. it was already running.",
+        "[    0.124900] oracled: listening on the deepnet",
+        "[    0.200000] cron: scheduler started",
+        "[    0.421337] phosphor userspace ready",
+    ]
+
+    def _ensure_cron(self):
+        if getattr(self, "_cron_jobs", None) is not None:
+            return
+        self._sys_log = list(self._BOOT_LOG)
+        now = time.time()
+        self._cron_jobs = [
+            {"id": 1, "kind": "sys", "interval": 45, "next": now + 45,
+             "msg": "phosphor-fsd: flushing disk cache"},
+            {"id": 2, "kind": "sys", "interval": 90, "next": now + 90,
+             "msg": "netd: renewing localhost lease"},
+            {"id": 3, "kind": "sys", "interval": 120, "next": now + 120,
+             "msg": "cron: rotating logs"},
+            {"id": 4, "kind": "sys", "interval": 75, "next": now + 75,
+             "msg": "theangled: it is still watching.",
+             "whisper": "...for a moment the cursor blinks in a rhythm that isn't yours."},
+            {"id": 5, "kind": "sys", "interval": 200, "next": now + 200,
+             "msg": "oracled: a prophecy was generated and discarded."},
+        ]
+        self._cron_nextid = 100
+
+    def _log(self, msg):
+        self._ensure_cron()
+        t = time.time() - self.start_time
+        self._sys_log.append(f"[{t:12.6f}] {msg}")
+        if len(self._sys_log) > 300:
+            self._sys_log = self._sys_log[-300:]
+
+    def _cron_newid(self):
+        self._cron_nextid = getattr(self, "_cron_nextid", 100) + 1
+        return self._cron_nextid
+
+    def _cron_run(self, cmd):
+        if getattr(self, "_in_cron", False):
+            return
+        self._in_cron = True
+        try:
+            self.dispatch(cmd, top=False)
+        except Exception as e:
+            self.p(f"  cron job error: {e}", "err")
+        finally:
+            self._in_cron = False
+
+    def _cron_tick(self):
+        self._ensure_cron()
+        if getattr(self, "_in_cron", False):
+            return
+        now = time.time()
+        due = sorted((j for j in self._cron_jobs if j["next"] <= now),
+                     key=lambda j: j["next"])
+        oneshots = []
+        for j in due:
+            if j["kind"] == "sys":
+                self._log(j["msg"])
+                if j.get("whisper") and random.random() < 0.5:
+                    self.p("  " + j["whisper"], "dim")
+                j["next"] = now + j["interval"]
+            else:
+                self.p(f"  » {j['kind']}[{j['id']}] {j['cmd']}", "dim")
+                self._log(f"{j['kind']}[{j['id']}] running: {j['cmd']}")
+                self._cron_run(j["cmd"])
+                if j["kind"] == "at":
+                    oneshots.append(j)
+                else:
+                    j["next"] = now + j["interval"]
+        for j in oneshots:
+            if j in self._cron_jobs:
+                self._cron_jobs.remove(j)
+
+    def cmd_dmesg(self, args=None):
+        self._ensure_cron()
+        args = args or []
+        if args and args[0] in ("-c", "--clear"):
+            self._sys_log = []
+            self.p("  kernel ring buffer cleared.", "dim"); return
+        n = int(args[0].lstrip("-")) if (args and args[0].lstrip("-").isdigit()) else None
+        lines = self._sys_log[-n:] if n else self._sys_log
+        if not lines:
+            self.p("  (log is empty)", "dim"); return
+        for ln in lines:
+            low = ln.lower()
+            role = "err" if ("angle" in low or "panic" in low) else "dim"
+            self.p("  " + ln, role)
+
+    def cmd_cron(self, args=None):
+        self._ensure_cron()
+        args = args or []
+        sub = args[0].lower() if args else "list"
+        if sub in ("list", "ls", ""):
+            self.p(f"  cron table — {len(self._cron_jobs)} jobs", "accent")
+            for j in self._cron_jobs:
+                if j["kind"] == "sys":
+                    self.p(f"   [{j['id']:>3}] every {j['interval']:>4}s  system   {j['msg']}", "dim")
+                else:
+                    when = "once" if j["kind"] == "at" else f"every {j['interval']}s"
+                    self.p(f"   [{j['id']:>3}] {when:<11} {j['cmd']}", "text")
+            self.p("  add: cron add <seconds> <command>    remove: cron rm <id>", "dim")
+            return
+        if sub in ("add", "new"):
+            if len(args) < 3 or not args[1].isdigit():
+                self.p("usage: cron add <seconds> <command>", "warn"); return
+            interval = max(0, int(args[1]))
+            cmd = " ".join(args[2:])
+            jid = self._cron_newid()
+            self._cron_jobs.append({"id": jid, "kind": "cron", "interval": interval,
+                                    "next": time.time() + interval, "cmd": cmd})
+            self.p(f"  scheduled cron[{jid}]: every {interval}s → {cmd}", "accent")
+            self._log(f"cron: job {jid} added (every {interval}s: {cmd})")
+            return
+        if sub in ("rm", "remove", "del", "delete"):
+            if len(args) < 2 or not args[1].isdigit():
+                self.p("usage: cron rm <id>", "warn"); return
+            jid = int(args[1])
+            before = len(self._cron_jobs)
+            self._cron_jobs = [j for j in self._cron_jobs
+                               if not (j["id"] == jid and j["kind"] != "sys")]
+            self.p(f"  removed cron[{jid}]." if len(self._cron_jobs) < before
+                   else f"  no removable job with id {jid}.",
+                   "accent" if len(self._cron_jobs) < before else "err")
+            return
+        if sub == "clear":
+            self._cron_jobs = [j for j in self._cron_jobs if j["kind"] == "sys"]
+            self.p("  cleared user cron jobs.", "dim"); return
+        self.p("usage: cron [list | add <s> <cmd> | rm <id> | clear]", "warn")
+
+    def cmd_at(self, args=None):
+        self._ensure_cron()
+        args = args or []
+        if len(args) < 2 or not args[0].isdigit():
+            self.p("usage: at <seconds> <command>", "warn")
+            self.p("  e.g.  at 30 fortune    (runs once, ~30s later)", "dim"); return
+        delay = max(0, int(args[0]))
+        cmd = " ".join(args[1:])
+        jid = self._cron_newid()
+        self._cron_jobs.append({"id": jid, "kind": "at", "interval": delay,
+                                "next": time.time() + delay, "cmd": cmd})
+        self.p(f"  scheduled at[{jid}]: in {delay}s → {cmd}", "accent")
+        self._log(f"at: job {jid} scheduled (+{delay}s: {cmd})")
 
     def cmd_ver(self, args=None):
         self.p(f"  PHOSPHOR-OS  v{self.VERSION}", "accent")

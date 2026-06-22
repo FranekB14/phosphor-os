@@ -93,7 +93,7 @@ exe is what makes this possible — no rebuild needed.
 
 ## Command reference
 
-There are **123 commands**. Type `help` inside the OS for the live list, or
+There are **126 commands**. Type `help` inside the OS for the live list, or
 `help <command>` for usage and aliases. Almost every command has short aliases
 (shown in parentheses).
 
@@ -176,6 +176,9 @@ There are **123 commands**. Type `help` inside the OS for the live list, or
 | `sound` (audio) | Toggle PC-speaker sound effects (`sound on/off/test`) |
 | `beep` | Emit a beep at a given frequency (`beep 440 200`) |
 | `play` (tune) | Play a built-in tune (`play list` to see them) |
+| `dmesg` (syslog, log) | Show the kernel / system message log (`dmesg -c` clears) |
+| `cron` (crontab) | Schedule recurring jobs (`cron add <seconds> <command>`, `cron rm <id>`) |
+| `at` | Run a command once after a delay (`at 30 fortune`) |
 | `ver` (about) | Show OS version / about |
 | `save` | Save the virtual disk to the host |
 | `load` | Reload the virtual disk from the host |

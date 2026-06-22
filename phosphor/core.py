@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "3.3"
+    VERSION = "3.4"
 
     DISK_FILE = "phosphor_disk.json"
 
@@ -106,6 +106,9 @@ class CoreShell:
         ("sound",  ["audio"],      "system","sound [on|off|test]", "Toggle PC-speaker sound effects"),
         ("beep",   [],             "system","beep [freq] [ms]",   "Emit a beep at a given frequency"),
         ("play",   ["tune"],       "system","play <tune>",        "Play a built-in tune (try: play list)"),
+        ("dmesg",  ["syslog", "log"], "system","dmesg [-c|N]",      "Show the kernel / system message log"),
+        ("cron",   ["crontab"],    "system","cron [add|rm|list]",  "Schedule recurring background jobs"),
+        ("at",     [],             "system","at <seconds> <cmd>",  "Run a command once after a delay"),
         ("ver",    ["about"],      "system","ver",                "Show OS version / about"),
         ("save",   [],             "system","save",               "Save the virtual disk to host"),
         ("load",   [],             "system","load",               "Reload the virtual disk from host"),
@@ -436,6 +439,8 @@ class CoreShell:
             return
         if top:
             self.history.append(line)
+            if not getattr(self, "_in_cron", False):
+                self._cron_tick()        # let scheduled jobs catch up
         # ---- hidden easter eggs: match the whole normalized phrase ----
         norm = " ".join(line.lower().split()).rstrip("?!.")
         if norm in self.EASTER_EGGS:

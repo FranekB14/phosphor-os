@@ -253,6 +253,7 @@ class NetworkMixin:
         if runtime.INTERACTIVE:
             time.sleep(0.5)
         self.p(f"  Connected to {host}.", "accent")
+        self._log(f"netd: session opened to {host} ({self._resolve_host(host)})")
         self.p("  Escape character is '^]'.", "dim")
         for line in self.NET_BANNERS.get(host, "(the line is silent)").split("\n"):
             self.p("  " + line, "text")
