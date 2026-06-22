@@ -240,9 +240,251 @@ class ToysMixin:
             self.p(r, "accent")
         self.p(f"  {datetime.date.today().strftime('%A, %d %B %Y')}", "dim")
 
+    SAVER_H = 22
+
+    SAVER_W = 72
+
+    def _screen_dims(self):
+        """Best estimate of the drawable area (cols, rows). Uses the size the
+        GUI reports; falls back to the console size."""
+        if self.term_size:
+            W, H = self.term_size
+        else:
+            try:
+                sz = shutil.get_terminal_size((self.SAVER_W, self.SAVER_H + 2))
+                W, H = sz.columns, sz.lines
+            except Exception:
+                W, H = self.SAVER_W, self.SAVER_H + 2
+        W = max(24, min(int(W) - 1, 220))
+        H = max(8, min(int(H) - 1, 64))
+        return W, H
+
     def cmd_screensaver(self, args=None):
-        saver = random.choice(["matrix", "fire", "aquarium"])
-        self.p(f"  screensaver: {saver}  (Ctrl-C to wake)", "dim")
+        names = ["matrix", "starfield", "life", "bounce", "fireworks", "fire"]
+        if args and args[0].lower() in ("list", "ls"):
+            self.p("  screensavers: " + ", ".join(names), "accent")
+            self.p("  run: screensaver <name>   (or just 'screensaver' for a random one)", "dim")
+            return
+        a0 = args[0].lower() if args else ""
+        name = a0 if a0 in names else ("starfield" if a0 == "rain" else random.choice(names))
+        if self._gui_saver is not None:        # GUI: open a dedicated fullscreen window
+            self.p(f"  ░ {name} screensaver — opening in its own window (any key to close) ░", "dim")
+            self._gui_saver(name)
+            return
+        # console fallback: ANSI animation until Ctrl-C
+        self.p(f"  ░ screensaver: {name} ░   Ctrl-C to wake", "dim")
         if runtime.INTERACTIVE:
             time.sleep(0.6)
-        getattr(self, "cmd_" + saver)()
+        self._run_screensaver(getattr(self, "_saver_" + name))
+
+    def _run_screensaver(self, render, fps=18):
+        """Console screensaver loop (the GUI uses its own window). Renders the
+        animation as ANSI until Ctrl-C. `render(state, W, H)` returns
+        (chars, colors): two H x W grids (color is an (r,g,b) tuple or None)."""
+        self._interrupt = False
+        self._screensaver = True
+        state, prev_dims, first = {}, None, True
+        delay = 1.0 / fps
+        try:
+            sys.stdout.write("\033[2J\033[H")
+            while not self._interrupt:
+                W, H = self._screen_dims()
+                if (W, H) != prev_dims:           # window resized -> reset & clear
+                    state, first, prev_dims = {}, True, (W, H)
+                    cells = W * H                 # bigger grids run a touch slower
+                    fps = 20 if cells < 3500 else 14 if cells < 7000 else 9
+                    delay = 1.0 / fps
+                    sys.stdout.write("\033[2J\033[H")
+                chars, colors = render(state, W, H)
+                out = [] if first else [f"\033[{H}A"]
+                first = False
+                for y in range(H):
+                    out.append(self._ansi_row(chars[y], colors[y], W) + RESET + "\n")
+                sys.stdout.write("".join(out))
+                try:
+                    sys.stdout.flush()
+                except Exception:
+                    pass
+                if not runtime.INTERACTIVE:               # headless: render one frame only
+                    break
+                time.sleep(delay)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self._screensaver = False
+            self._interrupt = False
+        sys.stdout.write("\033[2J\033[H")
+        self.p("  ...screensaver off.", "dim")
+
+    @staticmethod
+    def _ansi_row(chars, colors, W):
+        """Turn a row of chars + per-cell colors into one string, emitting a
+        color escape ONLY when the color changes. This collapses a row into a
+        few segments instead of one per cell — the difference between smooth and
+        unwatchable when the window is large. Colors are quantized to 16 steps,
+        which also merges near-identical neighbors and bounds the GUI tag count."""
+        out = []
+        ap = out.append
+        last = None
+        for x in range(W):
+            col = colors[x]
+            if col is None:
+                if last is not None:
+                    ap(RESET); last = None
+                ap(" ")
+            else:
+                q = (col[0] & 0xF0, col[1] & 0xF0, col[2] & 0xF0)
+                if q != last:
+                    ap(rgb(*q)); last = q
+                ap(chars[x])
+        return "".join(out)
+
+    def _saver_matrix(self, st, W, H):
+        if "drops" not in st:
+            st["drops"] = [random.randint(-H, 0) for _ in range(W)]
+            st["chars"] = "01ｱｲｳｴｵｶｷｸ#$%&*+=<>"
+        rows = [[" "] * W for _ in range(H)]
+        color = [[None] * W for _ in range(H)]
+        pick = st["chars"]
+        for c in range(W):
+            head = st["drops"][c]
+            for t in range(12):                  # trail length
+                y = head - t
+                if 0 <= y < H:
+                    rows[y][c] = random.choice(pick)
+                    if t == 0:
+                        color[y][c] = (200, 255, 200)        # bright head
+                    else:
+                        g = max(40, 255 - t * 22)
+                        color[y][c] = (0, g, max(20, g // 3))
+            st["drops"][c] += 1
+            if st["drops"][c] - 12 > H and random.random() < 0.12:
+                st["drops"][c] = random.randint(-6, 0)
+        return rows, color
+
+    def _saver_starfield(self, st, W, H):
+        cx, cy = W / 2, H / 2
+        if "stars" not in st:
+            st["stars"] = [[random.uniform(-1, 1), random.uniform(-1, 1)]
+                           for _ in range(max(50, W * H // 70))]
+        grid = [[" "] * W for _ in range(H)]
+        col = [[None] * W for _ in range(H)]
+        glyphs = ".·+*o#@"
+        for s in st["stars"]:
+            s[0] *= 1.06; s[1] *= 1.06          # move outward
+            x = int(cx + s[0] * cx)
+            y = int(cy + s[1] * cy)
+            if not (0 <= x < W and 0 <= y < H):
+                s[0], s[1] = random.uniform(-0.2, 0.2), random.uniform(-0.2, 0.2)
+                continue
+            depth = min(len(glyphs) - 1, int((abs(s[0]) + abs(s[1])) * len(glyphs)))
+            grid[y][x] = glyphs[depth]
+            v = 120 + depth * 20
+            col[y][x] = (v, v, 255)
+        return grid, col
+
+    def _saver_life(self, st, W, H):
+        if "grid" not in st or st.get("age", 0) > 300:
+            st["grid"] = [[random.random() < 0.28 for _ in range(W)] for _ in range(H)]
+            st["age"] = 0
+        g = st["grid"]
+        new = [[False] * W for _ in range(H)]
+        live = 0
+        for y in range(H):
+            gy0, gy1, gy2 = g[(y - 1) % H], g[y], g[(y + 1) % H]
+            row = new[y]
+            for x in range(W):
+                xm, xp = (x - 1) % W, (x + 1) % W
+                n = (gy0[xm] + gy0[x] + gy0[xp] + gy1[xm] + gy1[xp]
+                     + gy2[xm] + gy2[x] + gy2[xp])
+                if n == 3 or (gy1[x] and n == 2):
+                    row[x] = True; live += 1
+        st["grid"] = new
+        st["age"] = st.get("age", 0) + 1
+        if live < 8:
+            st["age"] = 999                       # nearly dead -> reseed next frame
+        glow = (112, 240, 160)
+        chars = [["█" if new[y][x] else " " for x in range(W)] for y in range(H)]
+        colors = [[glow if new[y][x] else None for x in range(W)] for y in range(H)]
+        return chars, colors
+
+    def _saver_bounce(self, st, W, H):
+        word = "PHOSPHOR-OS"
+        if "x" not in st:
+            st.update(x=random.randint(0, max(0, W - len(word))), y=random.randint(0, H - 1),
+                      dx=random.choice([-1, 1]), dy=random.choice([-1, 1]),
+                      color=(random.randint(120, 255), random.randint(120, 255),
+                             random.randint(120, 255)))
+        st["x"] += st["dx"]; st["y"] += st["dy"]
+        bounced = False
+        if st["x"] <= 0 or st["x"] >= W - len(word):
+            st["dx"] *= -1; st["x"] = max(0, min(W - len(word), st["x"])); bounced = True
+        if st["y"] <= 0 or st["y"] >= H - 1:
+            st["dy"] *= -1; st["y"] = max(0, min(H - 1, st["y"])); bounced = True
+        if bounced:
+            st["color"] = (random.randint(120, 255), random.randint(120, 255),
+                           random.randint(120, 255))
+        chars = [[" "] * W for _ in range(H)]
+        colors = [[None] * W for _ in range(H)]
+        y = st["y"]; col = st["color"]
+        for i, ch in enumerate(word):
+            x = st["x"] + i
+            if 0 <= x < W:
+                chars[y][x] = ch; colors[y][x] = col
+        return chars, colors
+
+    def _saver_fireworks(self, st, W, H):
+        if "rockets" not in st:
+            st["rockets"], st["sparks"] = [], []
+        if random.random() < 0.16 and len(st["rockets"]) < 4:
+            st["rockets"].append({"x": random.randint(6, max(7, W - 6)), "y": H - 1,
+                                  "top": random.randint(2, max(3, H // 2))})
+        for r in list(st["rockets"]):
+            r["y"] -= 1
+            if r["y"] <= r["top"]:
+                c = (random.randint(120, 255), random.randint(120, 255), random.randint(120, 255))
+                for _ in range(26):
+                    sp = random.uniform(0.4, 1.7)
+                    st["sparks"].append({"x": float(r["x"]), "y": float(r["y"]),
+                                         "vx": sp * 1.7 * (random.random() - 0.5) * 2,
+                                         "vy": sp * (random.random() - 0.5) * 2,
+                                         "life": random.randint(6, 15), "c": c})
+                st["rockets"].remove(r)
+        for s in list(st["sparks"]):
+            s["x"] += s["vx"]; s["y"] += s["vy"]; s["vy"] += 0.15; s["life"] -= 1
+            if s["life"] <= 0 or not (0 <= s["x"] < W and 0 <= s["y"] < H):
+                st["sparks"].remove(s)
+        grid = [[" "] * W for _ in range(H)]
+        col = [[None] * W for _ in range(H)]
+        for r in st["rockets"]:
+            if 0 <= r["y"] < H:
+                grid[r["y"]][r["x"]] = "|"; col[r["y"]][r["x"]] = (255, 240, 180)
+        for s in st["sparks"]:
+            x, y = int(s["x"]), int(s["y"])
+            grid[y][x] = random.choice("*+.")
+            col[y][x] = s["c"]
+        return grid, col
+
+    def _saver_fire(self, st, W, H):
+        if "heat" not in st:
+            st["heat"] = [[0] * W for _ in range(H)]
+        heat = st["heat"]
+        bottom = heat[H - 1]
+        for x in range(W):                        # seed the bottom row
+            bottom[x] = random.randint(180, 255) if random.random() < 0.85 else 0
+        for y in range(H - 1):                     # propagate upward, cooling
+            row, below = heat[y], heat[y + 1]
+            for x in range(W):
+                row[x] = max(0, below[(x + random.randint(-1, 1)) % W] - random.randint(12, 38))
+        palette = " ...:::+++***###"
+        plen = len(palette)
+        chars = [[" "] * W for _ in range(H)]
+        colors = [[None] * W for _ in range(H)]
+        for y in range(H):
+            hr = heat[y]; crow = chars[y]; colrow = colors[y]
+            for x in range(W):
+                h = hr[x]
+                if h >= 20:
+                    crow[x] = palette[min(plen - 1, h * plen // 256)]
+                    colrow[x] = (255, h if h < 255 else 255, h - 160 if h > 160 else 0)
+        return chars, colors

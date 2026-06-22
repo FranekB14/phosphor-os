@@ -164,6 +164,7 @@ def launch_gui():
             self.cur = ""
             self.hist_idx = None
             self.closed = False
+            self._saver_top = None     # the screensaver window, when one is open
 
             frame = tk.Frame(self.root, bg=BG, borderwidth=0, highlightthickness=0)
             frame.pack(fill="both", expand=True)
@@ -220,6 +221,7 @@ def launch_gui():
 
             # start shell thread
             self.shell = Phosphor(input_fn=self._readline)
+            self.shell._gui_saver = self._launch_saver   # screensaver opens its own window
             self._stdout_orig = sys.stdout
             sys.stdout = _GuiStdout(self.out_q)
             self.thread = threading.Thread(target=self._run_shell, daemon=True)
@@ -275,6 +277,22 @@ def launch_gui():
             size = self._font_size_for(self.root.winfo_width())
             if size != self.font.cget("size"):
                 self.font.configure(size=size)
+            self._report_term_size()
+
+        def _report_term_size(self):
+            """Tell the shell the current window size in characters, so
+            full-screen screensavers can fill the window."""
+            try:
+                cw = self.font.measure("M") or 8
+                ch = self.font.metrics("linespace") or 16
+                pw = self.text.winfo_width()
+                ph = self.text.winfo_height()
+                if pw > 1 and ph > 1 and self.shell is not None:
+                    cols = max(24, (pw - 14) // cw)
+                    rows = max(8, (ph - 8) // ch)
+                    self.shell.term_size = (cols, rows)
+            except Exception:
+                pass
 
         def _on_resize(self, e):
             if e.widget is self.root:
@@ -304,6 +322,7 @@ def launch_gui():
                     if not self.shell.reboot_requested:
                         break
                     self.shell = Phosphor(input_fn=self._readline)
+                    self.shell._gui_saver = self._launch_saver
             except Exception:
                 pass
             finally:
@@ -339,13 +358,135 @@ def launch_gui():
             if not self.closed:
                 self.root.after(15, self._drain)
 
+        # ----- screensaver: runs in its own fullscreen window (a Toplevel) -----
+        SAVER_CELL = 22            # pixel size of each animation block
+
+        def _launch_saver(self, name):
+            """Called from the shell thread -> hop to the main (Tk) thread."""
+            try:
+                self.root.after(0, lambda: self._open_saver(name))
+            except Exception:
+                pass
+
+        def _open_saver(self, name):
+            if getattr(self, "_saver_top", None):
+                return                              # one at a time
+            render = getattr(self.shell, "_saver_" + name, None)
+            if render is None:
+                return
+            self._saver_render = render
+            self._saver_state = {}
+            self._saver_dims = (0, 0)
+            self._saver_rects = []
+            self._saver_prev = []
+            self._saver_after = None
+            top = tk.Toplevel(self.root)
+            top.title("PHOSPHOR-OS — screensaver")
+            top.configure(bg="black")
+            try:
+                top.attributes("-fullscreen", True)
+            except Exception:
+                try:
+                    top.state("zoomed")
+                except Exception:
+                    pass
+            cv = tk.Canvas(top, bg="black", highlightthickness=0, bd=0)
+            cv.pack(fill="both", expand=True)
+            self._saver_top = top
+            self._saver_canvas = cv
+            for seq in ("<Key>", "<Button-1>", "<Button-2>", "<Button-3>"):
+                top.bind(seq, self._close_saver)    # any key or click wakes it
+            top.protocol("WM_DELETE_WINDOW", self._close_saver)
+            top.update_idletasks()
+            top.lift(); top.focus_force(); cv.focus_set()
+            self._build_saver_grid()
+            self._tick_saver()
+
+        def _saver_grid_size(self):
+            cv = self._saver_canvas
+            pw = cv.winfo_width() or self._saver_top.winfo_screenwidth()
+            ph = cv.winfo_height() or self._saver_top.winfo_screenheight()
+            cell = self.SAVER_CELL
+            W = max(20, min(int(pw) // cell, 110))
+            H = max(10, min(int(ph) // cell, 64))
+            return W, H, pw, ph
+
+        def _build_saver_grid(self):
+            cv = self._saver_canvas
+            W, H, pw, ph = self._saver_grid_size()
+            cv.delete("all")
+            self._saver_dims = (W, H)
+            self._saver_rects = [[None] * W for _ in range(H)]
+            self._saver_prev = [["#000000"] * W for _ in range(H)]
+            cw = pw / W; chh = ph / H
+            for y in range(H):
+                ry = self._saver_rects[y]; y0 = y * chh
+                for x in range(W):
+                    x0 = x * cw
+                    ry[x] = cv.create_rectangle(x0, y0, x0 + cw + 1, y0 + chh + 1,
+                                                fill="#000000", outline="")
+            self._saver_state = {}                  # restart the animation at the new size
+
+        def _tick_saver(self):
+            top = getattr(self, "_saver_top", None)
+            if not top:
+                return
+            cv = self._saver_canvas
+            if self._saver_grid_size()[:2] != self._saver_dims:   # resized -> rebuild
+                self._build_saver_grid()
+            W, H = self._saver_dims
+            try:
+                _chars, colors = self._saver_render(self._saver_state, W, H)
+            except Exception:
+                colors = [[None] * W for _ in range(H)]
+            rects = self._saver_rects; prev = self._saver_prev; cfg = cv.itemconfigure
+            for y in range(H):
+                crow = colors[y]; prow = prev[y]; rrow = rects[y]
+                for x in range(W):
+                    col = crow[x]
+                    fill = ("#%02x%02x%02x" % col) if col else "#000000"
+                    if fill != prow[x]:             # only touch cells that changed
+                        cfg(rrow[x], fill=fill)
+                        prow[x] = fill
+            cells = W * H
+            delay = 45 if cells < 2200 else 65 if cells < 4000 else 90
+            self._saver_after = top.after(delay, self._tick_saver)
+
+        def _close_saver(self, e=None):
+            top = getattr(self, "_saver_top", None)
+            if not top:
+                return
+            self._saver_top = None
+            try:
+                if self._saver_after:
+                    top.after_cancel(self._saver_after)
+            except Exception:
+                pass
+            try:
+                top.destroy()
+            except Exception:
+                pass
+            try:                                    # hand focus back to the terminal
+                self.root.lift(); self.root.focus_force(); self.text.focus_set()
+            except Exception:
+                pass
+
         # ----- input handling -----
         def _render_input(self):
             self.text.delete(self.input_start, "end-1c")
             self.text.insert("end-1c", self.cur, "input")
             self.text.see("end")
 
+        def _wake_saver(self):
+            """If a screensaver is running, any keystroke wakes it."""
+            if getattr(self.shell, "_screensaver", False):
+                self.shell._interrupt = True
+                return True
+            return False
+
         def _on_key(self, e):
+            if self._wake_saver():
+                return "break"
             if not self.awaiting:
                 return "break"
             if e.char and e.char.isprintable() and len(e.char) == 1:
@@ -392,12 +533,16 @@ def launch_gui():
             return "break"
 
         def _on_back(self, e):
+            if self._wake_saver():
+                return "break"
             if self.awaiting and self.cur:
                 self.cur = self.cur[:-1]
                 self._render_input()
             return "break"
 
         def _on_return(self, e):
+            if self._wake_saver():
+                return "break"
             if not self.awaiting:
                 return "break"
             line = self.cur
@@ -407,6 +552,8 @@ def launch_gui():
             return "break"
 
         def _history(self, direction):
+            if self._wake_saver():
+                return True
             if not self.awaiting:
                 return True
             h = self.shell.history
@@ -420,6 +567,8 @@ def launch_gui():
             return True
 
         def _complete(self):
+            if self._wake_saver():
+                return True
             if not self.awaiting:
                 return True
             tokens = self.cur.split(" ")

@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "2.6.1"
+    VERSION = "2.7.1"
 
     DISK_FILE = "phosphor_disk.json"
 
@@ -159,6 +159,10 @@ class CoreShell:
         self.packages = []       # installed fake packages (Phase 3)
         self._pipe_in = None     # text piped into the current command, or None
         self._batch_depth = 0    # guard against runaway batch-script recursion
+        self._interrupt = False  # set by the GUI on any key to wake a screensaver
+        self._screensaver = False  # True while a full-screen screensaver runs
+        self.term_size = None    # (cols, rows) reported by the GUI, or None
+        self._gui_saver = None   # GUI installs a callback to open a saver window
         self.update_repo = self.UPDATE_REPO
         self.update_branch = self.UPDATE_BRANCH
         # build command dispatch (name/alias -> (handler, spec))
