@@ -47,9 +47,10 @@ class SystemMixin:
         groups = {}
         for primary, aliases, group, usage, desc in self.SPEC:
             groups.setdefault(group, []).append((primary, desc))
-        order = ["files", "tools", "system", "toys", "games"]
+        order = ["files", "tools", "system", "network", "toys", "games"]
         titles = {"files": "FILESYSTEM", "tools": "TOOLS",
-                  "system": "SYSTEM", "toys": "TOYS", "games": "GAMES"}
+                  "system": "SYSTEM", "network": "NETWORK",
+                  "toys": "TOYS", "games": "GAMES"}
         for g in order:
             if not groups.get(g):
                 continue

@@ -66,6 +66,7 @@ Type `help` inside the OS for the full list, or `help <command>` for details.
 | **Files** | `ls` `cd` `pwd` `tree` `mkdir` `rmdir` `touch` `write` `append` `cat` `rm` `cp` `mv` `find` `grep` `wc` `head` `tail` `sort` `nl` `edit` |
 | **Tools** | `python` `img2ascii` `calc` `banner` `echo` `rev` `upper` `lower` `roll` `flip` `convert` `todo` `morse` `leet` `rot13` `bases` `asciitable` |
 | **System** | `help` `clear` `theme` `sysinfo` `history` `alias` `unalias` `set` `unset` `run` `update` `pkg` `secrets` `scores` `setname` `whoami` `date` `time` `uptime` `ver` `save` `load` `format` `reboot` `exit` |
+| **Network** | `ipconfig` `myip` `ping` `nslookup` `scan` `netstat` `route` `wget` `telnet` |
 | **Toys** | `matrix` `hack` `cowsay` `fortune` `glitch` `8ball` `joke` `rainbow` `slot` `fire` `aquarium` `clock` `screensaver` |
 | **Games** | `guess` `rps` `hangman` `ttt` `quiz` `wordle` `2048` `minesweeper` `blackjack` |
 
@@ -83,6 +84,29 @@ It behaves like a real shell, not just a command list:
 - **A built-in editor** — `edit <file>` opens a simple line editor
 - **Command history** — arrow keys, plus `history`
 - **Tab completion** — for commands and file names
+
+## The network
+
+PHOSPHOR-OS has its own little world to explore with a set of networking tools.
+Most of it is a **simulated** network — a handful of mysterious hosts you can
+discover and poke at:
+
+```
+scan                     list the hosts out there
+ping oracle.deepnet      ping a host
+nslookup bbs.nightcity.bbs
+wget archive.retronet.org        read what a host is serving
+telnet the-angle.eye             open a session... if you dare
+```
+
+Two commands, though, report your **real** machine:
+
+- `ipconfig` shows your actual LAN address, plus your real public IP.
+- `myip` shows just the public IP.
+
+The public address is whatever your connection actually presents to the
+internet — so if you're on a **VPN**, it shows the VPN's exit IP instead of your
+own. (These two need an internet connection; everything else works offline.)
 
 ## Themes
 

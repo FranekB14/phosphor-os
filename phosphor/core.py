@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "2.7.1"
+    VERSION = "2.8"
 
     DISK_FILE = "phosphor_disk.json"
 
@@ -105,6 +105,16 @@ class CoreShell:
         ("format", [],             "system","format",             "Wipe the virtual disk (asks first)"),
         ("reboot", [],             "system","reboot",             "Restart the simulator"),
         ("exit",   ["shutdown","quit"],"system","exit",          "Power off and leave"),
+        # --- network (Phase 4) ---
+        ("ipconfig",["ifconfig","ip"],"network","ipconfig",       "Show network config (incl. your real public IP)"),
+        ("myip",   ["whatismyip","publicip"],"network","myip",    "Show your real public IP (VPN-aware)"),
+        ("ping",   [],             "network","ping <host>",       "Ping a host on the (simulated) network"),
+        ("nslookup",["dig","resolve"],"network","nslookup <host>","Resolve a hostname to an address"),
+        ("scan",   ["netscan","nmap"],"network","scan",           "Scan the local segment for live hosts"),
+        ("netstat",["ports"],      "network","netstat",           "Show active network connections"),
+        ("route",  [],             "network","route",             "Show the IP routing table"),
+        ("wget",   ["curl","fetch"],"network","wget <host> [--save f]","Download a page from a network host"),
+        ("telnet", ["connect"],    "network","telnet <host>",     "Open a session to a network host"),
         # --- toys ---
         ("matrix", [],             "toys",  "matrix [frames]",     "Digital rain effect"),
         ("hack",   [],             "toys",  "hack <target>",       "Totally real hacking sequence ;)"),
