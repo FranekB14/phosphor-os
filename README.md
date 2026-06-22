@@ -1,12 +1,36 @@
 # PHOSPHOR-OS
 
-> A retro CRT-terminal operating-system simulator written in Python — boot a haunted 1980s machine with a real shell, tools, games, and a few secrets.
+> A retro CRT-terminal operating-system simulator written in Python — boot a haunted 1980s machine with a real shell, networking, tools, games, and a few secrets.
 
 PHOSPHOR-OS is a self-contained fake "operating system" that runs inside its own
-terminal window. It has a boot sequence, a virtual filesystem, a working shell
-with pipes and scripting, a built-in Python interpreter, an image-to-ASCII
-converter, a pile of games and toys, six color themes, and some hidden things to
-find.
+green-on-black terminal window. It boots with a POST sequence, gives you a
+working shell (pipes, redirection, scripting, history, tab-completion), a virtual
+filesystem that persists between sessions, a built-in real Python interpreter, a
+simulated network to explore, an image-to-ASCII converter, fullscreen
+screensavers, six color themes, a pile of games and toys — and a few things
+hidden in the dark.
+
+Everything runs on the Python standard library. The only optional dependency is
+Pillow, and only for one command.
+
+---
+
+## Contents
+
+- [Running it](#running-it)
+- [Updating](#updating)
+- [Command reference](#command-reference)
+- [The shell](#the-shell)
+- [The network](#the-network)
+- [Screensavers](#screensavers)
+- [Games & toys](#games--toys)
+- [Built-in Python](#built-in-python)
+- [Image to ASCII](#image-to-ascii)
+- [Themes](#themes)
+- [The virtual disk & your data](#the-virtual-disk--your-data)
+- [Keyboard & tips](#keyboard--tips)
+- [Secrets](#secrets)
+- [License](#license)
 
 ---
 
@@ -31,8 +55,8 @@ built-in `update` command upgrade it later without you reinstalling anything.
 
 ### Option B — from source (any OS with Python)
 
-Requires **Python 3.8+** (Tkinter is included with most installs; on some Linux
-distros, `sudo apt install python3-tk`). From inside the project folder:
+Requires **Python 3.8+** (Tkinter ships with most installs; on some Linux distros
+run `sudo apt install python3-tk`). From inside the project folder:
 
 ```
 python phosphor_os.py             # opens the CRT terminal window (default)
@@ -44,80 +68,312 @@ Keep `phosphor_os.py` and the `phosphor/` folder together — the launcher impor
 the package. *(Optional: `pip install pillow` if you want the `img2ascii`
 command.)*
 
+If Tkinter is missing, PHOSPHOR-OS falls back to running inside your existing
+terminal automatically.
+
+---
+
 ## Updating
 
-PHOSPHOR-OS can update itself. Inside the OS, run:
+PHOSPHOR-OS can update itself from its GitHub home. Inside the OS:
 
 ```
 update            # download + install the latest, then restart
-update --check    # only check whether a new version exists
+update --check    # only check whether a newer version exists
+update --force    # reinstall even if you're already current
 ```
 
-It compares your version against the `VERSION` file at the repo root, downloads
-the latest, backs up your current files to `.phosphor_backups/<timestamp>/`, and
-asks you to restart.
+It compares your `VERSION` against the one in the repo, downloads the latest,
+backs your current files up to `.phosphor_backups/<timestamp>/`, mirrors the new
+code into place, and asks you to restart. The loose `phosphor\` folder beside the
+exe is what makes this possible — no rebuild needed.
 
-## Commands
+---
 
-Type `help` inside the OS for the full list, or `help <command>` for details.
+## Command reference
 
-| Group | Commands |
-|-------|----------|
-| **Files** | `ls` `cd` `pwd` `tree` `mkdir` `rmdir` `touch` `write` `append` `cat` `rm` `cp` `mv` `find` `grep` `wc` `head` `tail` `sort` `nl` `edit` |
-| **Tools** | `python` `img2ascii` `calc` `banner` `echo` `rev` `upper` `lower` `roll` `flip` `convert` `todo` `morse` `leet` `rot13` `bases` `asciitable` |
-| **System** | `help` `clear` `theme` `sysinfo` `history` `alias` `unalias` `set` `unset` `run` `update` `pkg` `secrets` `scores` `setname` `whoami` `date` `time` `uptime` `ver` `save` `load` `format` `reboot` `exit` |
-| **Network** | `ipconfig` `myip` `ping` `nslookup` `scan` `netstat` `route` `wget` `telnet` |
-| **Toys** | `matrix` `hack` `cowsay` `fortune` `glitch` `8ball` `joke` `rainbow` `slot` `fire` `aquarium` `clock` `screensaver` |
-| **Games** | `guess` `rps` `hangman` `ttt` `quiz` `wordle` `2048` `minesweeper` `blackjack` |
+There are **94 commands**. Type `help` inside the OS for the live list, or
+`help <command>` for usage and aliases. Almost every command has short aliases
+(shown in parentheses).
+
+### Filesystem
+
+| Command | What it does |
+|---------|--------------|
+| `ls` (dir) | List directory contents |
+| `cd` | Change directory ( `..` = up, `/` = root ) |
+| `pwd` | Print working directory |
+| `tree` | Show the directory structure as a tree |
+| `mkdir` (md) | Create a directory |
+| `rmdir` | Remove an empty directory |
+| `touch` (new) | Create an empty file |
+| `write` | Overwrite a file with text |
+| `append` | Append text to a file |
+| `cat` (type) | Print file contents |
+| `rm` (del) | Delete a file |
+| `cp` (copy) | Copy a file |
+| `mv` (move, ren) | Move / rename a file |
+| `find` | Find files whose name contains text |
+| `grep` | Search text in a file or piped input |
+| `wc` | Count lines / words / chars (file or pipe) |
+| `head` | Show the first N lines (default 10) |
+| `tail` | Show the last N lines (default 10) |
+| `sort` | Sort lines (file or piped input) |
+| `nl` | Number lines (file or piped input) |
+| `edit` (ed) | Edit a file in a simple line editor |
+
+### Tools
+
+| Command | What it does |
+|---------|--------------|
+| `python` (py) | Drop into a real Python interpreter |
+| `img2ascii` (ascii, img) | Convert an image into ASCII art |
+| `calc` | Evaluate a math expression |
+| `banner` | Print BIG block-letter text |
+| `echo` | Print text |
+| `rev` | Reverse text |
+| `upper` | Uppercase text |
+| `lower` | Lowercase text |
+| `roll` (dice) | Roll dice, e.g. `roll 2d6` |
+| `flip` | Flip a coin |
+| `convert` (conv, unit) | Convert units (length / weight / temperature) |
+| `todo` (task, tasks) | A simple saved to-do list |
+| `morse` | Encode text to Morse, or decode `. -` back |
+| `leet` (1337) | Translate text into l33tspeak |
+| `rot13` | ROT13 cipher (run twice to undo) |
+| `bases` (base) | Show a number in dec / bin / oct / hex |
+| `asciitable` (chars) | Print the printable ASCII table |
+
+### System
+
+| Command | What it does |
+|---------|--------------|
+| `help` (?, man) | Show commands, or help for one command |
+| `clear` (cls) | Clear the screen |
+| `theme` (color) | Change the color theme |
+| `sysinfo` (neofetch) | Show a stylized system-info panel |
+| `history` | Show command history |
+| `alias` | List or define a command alias (saved) |
+| `unalias` | Remove an alias |
+| `set` (setenv) | List or set an environment variable (saved) |
+| `unset` | Remove an environment variable |
+| `run` (batch, do) | Run a file of commands (batch script) |
+| `update` (upgrade) | Update PHOSPHOR-OS from GitHub |
+| `pkg` (package) | The (fake) package manager |
+| `secrets` (secret) | Hints that the OS is hiding something |
+| `scores` | Show your best game scores |
+| `setname` (rename) | Change your username (saved) |
+| `whoami` | Show the current user |
+| `date` | Show the current date |
+| `time` | Show the current time |
+| `uptime` | Show how long this session has run |
+| `ver` (about) | Show OS version / about |
+| `save` | Save the virtual disk to the host |
+| `load` | Reload the virtual disk from the host |
+| `format` | Wipe the virtual disk (asks first) |
+| `reboot` | Restart the simulator |
+| `exit` (shutdown, quit) | Power off and leave |
+
+### Network
+
+| Command | What it does |
+|---------|--------------|
+| `ipconfig` (ifconfig, ip) | Show network config, including your **real** public IP |
+| `myip` (whatismyip, publicip) | Show your real public IP (VPN-aware) |
+| `ping` | Ping a host on the (simulated) network |
+| `nslookup` (dig, resolve) | Resolve a hostname to an address |
+| `scan` (netscan, nmap) | Scan the local segment for live hosts |
+| `netstat` (ports) | Show active network connections |
+| `route` | Show the IP routing table |
+| `wget` (curl, fetch) | Download a page from a network host |
+| `telnet` (connect) | Open a session to a network host |
+
+### Toys
+
+| Command | What it does |
+|---------|--------------|
+| `matrix` | Digital rain effect |
+| `hack` | A totally real hacking sequence ;) |
+| `cowsay` | A cow says something wise |
+| `fortune` | Print a random fortune |
+| `glitch` | Render text with corrupted glitches |
+| `8ball` (eightball) | Ask the magic 8-ball a question |
+| `joke` | Tell a (bad) programmer joke |
+| `rainbow` | Print text in rainbow colors |
+| `slot` (slots) | Spin the slot machine |
+| `fire` | A cozy ASCII campfire |
+| `aquarium` (fish) | A little ASCII fish tank |
+| `clock` | Show the time as a big ASCII clock |
+| `screensaver` (saver) | Launch a fullscreen screensaver |
+
+### Games
+
+| Command | What it does |
+|---------|--------------|
+| `guess` | Guess-the-number game (1–100) |
+| `rps` | Rock paper scissors, best of 3 |
+| `hangman` | Classic hangman word game |
+| `ttt` (tictactoe) | Tic-tac-toe versus the computer |
+| `quiz` (trivia) | A quick 5-question trivia quiz |
+| `wordle` (phosdle) | Guess the 5-letter word in 6 tries |
+| `2048` | Slide and merge tiles to reach 2048 |
+| `minesweeper` (mines) | Clear the field without hitting a mine |
+| `blackjack` (21) | Beat the dealer to 21 without busting |
+
+---
 
 ## The shell
 
-It behaves like a real shell, not just a command list:
+It behaves like a real shell, not just a command launcher:
 
 - **Pipes** — `cat notes.txt | grep error | wc`
 - **Redirection** — `cmd > file`, `cmd >> file` (append), `cmd < file`
 - **Wildcards** — `ls *.txt`, `rm *.log`
-- **Aliases** — `alias ll="ls"` (saved between sessions)
-- **Variables** — `set NAME=value`, then `echo $NAME`; built-ins `$USER $VERSION $CWD $THEME $HOME`
-- **Batch scripts** — `run script.txt` runs a file of commands; an `autoexec.bat`
-  at the root of the virtual disk runs automatically on boot
-- **A built-in editor** — `edit <file>` opens a simple line editor
-- **Command history** — arrow keys, plus `history`
-- **Tab completion** — for commands and file names
+- **Aliases** — `alias ll="ls"` (saved between sessions; `unalias` to remove)
+- **Environment variables** — `set NAME=value`, then `echo $NAME` or `${NAME}`;
+  built-ins include `$USER`, `$VERSION`, `$CWD`, `$THEME`, `$HOME`
+- **Batch scripts** — `run script.txt` runs a file of commands line by line; an
+  `autoexec.bat` at the root of the virtual disk runs automatically on boot
+- **A line editor** — `edit <file>` opens a simple editor for a file
+- **History** — recall with the Up/Down arrows, or list it with `history`
+- **Tab completion** — completes command names and file names
+
+---
 
 ## The network
 
-PHOSPHOR-OS has its own little world to explore with a set of networking tools.
-Most of it is a **simulated** network — a handful of mysterious hosts you can
-discover and poke at:
+PHOSPHOR-OS has its own little world to explore. Most of it is a **simulated**
+network — a handful of mysterious hosts you can discover and poke at:
 
 ```
-scan                     list the hosts out there
-ping oracle.deepnet      ping a host
-nslookup bbs.nightcity.bbs
-wget archive.retronet.org        read what a host is serving
-telnet the-angle.eye             open a session... if you dare
+scan                          list the hosts that are out there
+ping oracle.deepnet           ping a host (with realistic latency)
+nslookup bbs.nightcity.bbs    resolve a hostname
+netstat                       see "active" connections
+route                         see the routing table
+wget archive.retronet.org     read what a host is serving (--save <file> to keep it)
+telnet the-angle.eye          open a session... if you dare
 ```
 
 Two commands, though, report your **real** machine:
 
-- `ipconfig` shows your actual LAN address, plus your real public IP.
+- `ipconfig` shows your actual LAN address, MAC, gateway, and your real public IP.
 - `myip` shows just the public IP.
 
-The public address is whatever your connection actually presents to the
-internet — so if you're on a **VPN**, it shows the VPN's exit IP instead of your
-own. (These two need an internet connection; everything else works offline.)
+The public address is whatever your connection actually presents to the internet,
+so if you're on a **VPN** it shows the VPN's exit IP instead of your own. These
+two reach out to the internet to learn the public address (with a short timeout
+and a graceful "offline" fallback); **everything else on the network works
+offline.**
+
+---
+
+## Screensavers
+
+`screensaver` opens a **dedicated fullscreen window** with a continuous animation.
+**Press any key (or click)** to close it and drop straight back to your terminal,
+exactly where you left off.
+
+```
+screensaver            launch a random one
+screensaver fire       launch a specific one
+screensaver list       show what's available
+```
+
+Available savers: `matrix`, `starfield`, `life` (Conway's Game of Life),
+`bounce`, `fireworks`, and `fire`. The window sizes itself to your screen and
+re-fits if you resize it. (In a plain terminal with `--console`, screensavers run
+inline and wake on Ctrl-C instead.)
+
+---
+
+## Games & toys
+
+Nine games keep score across sessions (`scores` shows your bests): the classics
+plus `2048`, `minesweeper`, and `blackjack`. The toys are pure atmosphere —
+`matrix` rain, a `fire`, an `aquarium`, a big ASCII `clock`, `cowsay`, `fortune`,
+the `slot` machine, `rainbow` text, and a fake `hack` sequence for showing off.
+
+---
+
+## Built-in Python
+
+`python` drops you into a real Python interpreter running inside the OS, with the
+live system exposed as the variable `os_sim`:
+
+```
+>>> os_sim.VERSION
+>>> os_sim.theme_name
+>>> 2 ** 16
+```
+
+Type `exit()` (or send EOF) to return to the shell. It works the same in the GUI,
+in a console, and in the packaged exe.
+
+---
+
+## Image to ASCII
+
+`img2ascii <path>` turns an image into ASCII art. Options:
+
+```
+img2ascii ~/pic.jpg 100 --color --save art.txt
+```
+
+- a width (columns), e.g. `100`
+- `--color` for ANSI color
+- `--invert` to flip light/dark
+- `--save <file>` to write the result into the virtual disk
+
+This is the one command that needs **Pillow** (`pip install pillow`).
+
+---
 
 ## Themes
 
 Six color schemes: `phosphor` (green), `amber`, `ice`, `blood`, `plasma`, `mono`.
-Switch with `theme <name>` — your choice is remembered.
+Switch with `theme <name>` — your choice is remembered between sessions.
 
 ```
 theme amber
 ```
 
-## Built-in Python
+---
 
-`python` drops you into a real Python interpreter, with the running OS exposed as
-the variable `os_sim`. Type `exit()` to return to the shell.
+## The virtual disk & your data
+
+PHOSPHOR-OS has a virtual filesystem that lives in a JSON file on your real
+machine, so anything you create persists between sessions.
+
+- `save` writes the disk now; `load` reloads it; `format` wipes it (after asking).
+- Your settings (theme, username), aliases, environment variables, to-do list,
+  installed fake packages, and high scores are saved too.
+
+On Windows these live under `%APPDATA%\PhosphorOS\`; on Linux/macOS under
+`~/.local/share/phosphor-os/`. Deleting that folder resets everything to a fresh
+install.
+
+---
+
+## Keyboard & tips
+
+- **Up / Down** — walk through command history
+- **Tab** — complete commands and file names
+- **Ctrl+C / Ctrl+A / Ctrl+V** — copy / select-all / paste in the terminal window
+  (right-click also opens a menu)
+- The window's font scales to its size — resize it and the text re-fits
+- Any key closes a running screensaver
+
+---
+
+## Secrets
+
+The OS is hiding a few things. `secrets` will nudge you in the right direction.
+Some commands do more than they admit, some files want to be found, and there's
+something on the network that probably shouldn't be. Go looking.
+
+---
+
+## License
+
+Released under the MIT License — see the `LICENSE` file.
