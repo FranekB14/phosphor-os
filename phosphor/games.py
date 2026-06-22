@@ -47,6 +47,7 @@ class GamesMixin:
             nx, ny = hx + dirn[0], hy + dirn[1]
             if nx < 0 or nx >= W or ny < 0 or ny >= H or (nx, ny) in snake[:-1]:
                 self._snake_draw(snake, food, W, H, score)
+                self._snd("gameover")
                 self.p(f"  ✖ GAME OVER — length {len(snake)}, score {score}.", "err")
                 if self.record_score("snake_best", score, "max"):
                     self.p("  ★ new best!", "accent")
@@ -54,6 +55,7 @@ class GamesMixin:
             snake.insert(0, (nx, ny))
             if (nx, ny) == food:
                 score += 1
+                self._snd("eat")
                 food = self._snake_food(snake, W, H)
             else:
                 snake.pop()
@@ -144,9 +146,11 @@ class GamesMixin:
                         lines += cleared
                         score += (0, 40, 100, 300, 1200)[min(cleared, 4)]
                         well = [[None] * W for _ in range(cleared)] + kept
+                        self._snd("line")
                     cells, ox, oy, color = spawn()
                     if collides(cells, ox, oy):
                         self._tetris_draw(well, cells, ox, oy, color, score, lines, W, H)
+                        self._snd("gameover")
                         self.p(f"  ✖ GAME OVER — {lines} lines, score {score}.", "err")
                         if self.record_score("tetris_best", score, "max"):
                             self.p("  ★ new best!", "accent")
@@ -216,6 +220,7 @@ class GamesMixin:
         while True:
             board()
             if all(len(found[s]) == 13 for s in range(4)):
+                self._snd("win")
                 self.p("  ★★★ YOU WIN — all 52 cards home! ★★★", "accent")
                 self.record_score("solitaire_wins", 1, "count")
                 return

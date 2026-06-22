@@ -249,6 +249,7 @@ class NetworkMixin:
         if host not in self.NET_HOSTS:
             self.p(f"  telnet: unable to connect to {host}: host unknown", "err"); return
         self.p(f"  Trying {self._resolve_host(host)}...", "dim")
+        self._snd("dialup")
         if runtime.INTERACTIVE:
             time.sleep(0.5)
         self.p(f"  Connected to {host}.", "accent")
@@ -256,6 +257,7 @@ class NetworkMixin:
         for line in self.NET_BANNERS.get(host, "(the line is silent)").split("\n"):
             self.p("  " + line, "text")
         if host == "the-angle.eye":
+            self._snd("angle")
             self.p("  IT FEELS THE CONNECTION OPEN. IT TURNS TO LOOK.", "err")
             self.p("  try 'the angle' if you dare.", "dim")
         self.p(f"  Connection to {host} closed.", "dim")

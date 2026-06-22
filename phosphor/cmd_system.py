@@ -667,6 +667,199 @@ class SystemMixin:
             del self.procs[pid]
             self.p(f"  terminated [{pid}] {name}" + ("  (SIGKILL)" if force else ""), "accent")
 
+    _SOUNDFX = {
+        "boot":     [(523, 90), (659, 90), (784, 90), (1047, 170)],
+        "shutdown": [(784, 110), (659, 110), (523, 220)],
+        "ok":       [(880, 60)],
+        "blip":     [(660, 45)],
+        "key":      [(1400, 7)],
+        "error":    [(196, 180)],
+        "warn":     [(330, 80), (247, 110)],
+        "prompt":   [(740, 25)],
+        "eat":      [(880, 40), (1320, 45)],
+        "line":     [(700, 50), (900, 50), (1175, 110)],
+        "gameover": [(392, 160), (294, 160), (196, 320)],
+        "win":      [(523, 110), (659, 110), (784, 110), (1047, 280)],
+        "angle":    [(70, 420), (55, 300), (45, 600)],
+        "dialup":   [(400, 120), (1200, 120), (0, 80), (980, 90), (1660, 90),
+                     (2200, 220), (300, 300), (1100, 260)],
+    }
+
+    _TUNES = {
+        "scale":   [(262, 160), (294, 160), (330, 160), (349, 160),
+                    (392, 160), (440, 160), (494, 160), (523, 280)],
+        "arpeggio":[(523, 120), (659, 120), (784, 120), (1047, 120),
+                    (784, 120), (659, 120), (523, 240)],
+        "fanfare": [(523, 110), (523, 110), (523, 110), (523, 240),
+                    (415, 240), (466, 240), (523, 160), (466, 110), (523, 360)],
+        "alarm":   [(880, 200), (660, 200)] * 4,
+        "boot":    _SOUNDFX["boot"],
+        "dialup":  _SOUNDFX["dialup"],
+    }
+
+    def _wav_bytes(self, seq, rate=11025, vol=0.30):
+        """Synthesize a sequence of (freq, ms) tones into an in-memory WAV
+        (square wave for that PC-speaker character, with a tiny attack/decay
+        envelope to avoid clicks). Played through the sound card, not the
+        long-gone motherboard speaker that winsound.Beep relies on."""
+        import io, wave, struct, math
+        frames = bytearray()
+        amp = int(vol * 32767)
+        for freq, dur in seq:
+            n = max(0, int(rate * dur / 1000.0))
+            if freq and freq >= 37:
+                edge = max(1, int(rate * 0.006))
+                period = rate / float(freq)
+                for i in range(n):
+                    env = 1.0
+                    if i < edge:
+                        env = i / edge
+                    elif i > n - edge:
+                        env = max(0.0, (n - i) / edge)
+                    s = amp if (i % period) < (period / 2) else -amp
+                    frames += struct.pack("<h", int(s * env))
+            else:
+                frames += b"\x00\x00" * n
+        buf = io.BytesIO()
+        w = wave.open(buf, "wb")
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate)
+        w.writeframes(bytes(frames)); w.close()
+        return buf.getvalue()
+
+    def _play_wav_external(self, data, block):
+        """Play WAV bytes via an OS command-line player (mac/linux).
+        Returns True if a player was found and launched."""
+        import sys, os, tempfile, subprocess, shutil
+        f = tempfile.NamedTemporaryFile(prefix="phos_", suffix=".wav", delete=False)
+        f.write(data); f.close()
+        path = f.name
+        cmd = None
+        if sys.platform == "darwin" and shutil.which("afplay"):
+            cmd = ["afplay", path]
+        else:
+            for name in ("paplay", "aplay", "ffplay"):
+                exe = shutil.which(name)
+                if exe:
+                    cmd = ([exe, "-nodisp", "-autoexit", "-loglevel", "quiet", path]
+                           if name == "ffplay" else [exe, path])
+                    break
+        if not cmd:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+            return False
+        try:
+            if block:
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                os.unlink(path)
+            else:
+                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except Exception:
+            return False
+
+    def _snd_play(self, seq, block=False):
+        """Play a sequence of (freq, ms) tones; non-blocking unless block=True.
+        Tries: winsound (Windows) -> OS player (mac/linux) -> Tk bell -> terminal bell."""
+        if not getattr(self, "sound_on", True) or not seq:
+            return
+
+        def worker():
+            try:
+                data = self._wav_bytes(seq)
+            except Exception:
+                data = None
+            if data:
+                try:                                  # 1. Windows: through the sound card
+                    import winsound
+                    flags = winsound.SND_MEMORY | (0 if block else winsound.SND_ASYNC)
+                    winsound.PlaySound(data, flags)
+                    return
+                except Exception:
+                    pass
+                try:                                  # 2. mac/linux: external player
+                    if self._play_wav_external(data, block):
+                        return
+                except Exception:
+                    pass
+            cb = getattr(self, "_gui_bell", None)      # 3. GUI: ring the Tk/system bell
+            if cb:
+                try:
+                    cb(); return
+                except Exception:
+                    pass
+            try:                                       # 4. last resort: terminal bell
+                import sys
+                sys.stdout.write("\a"); sys.stdout.flush()
+            except Exception:
+                pass
+
+        if block:
+            worker()
+        else:
+            import threading
+            threading.Thread(target=worker, daemon=True).start()
+
+    def _snd(self, name, block=False):
+        """Play a named effect (no-op if sound is off or the effect is unknown)."""
+        self._snd_play(self._SOUNDFX.get(name, []), block=block)
+
+    def cmd_sound(self, args=None):
+        args = args or []
+        opt = args[0].lower() if args else ""
+        if opt in ("on", "enable", "1", "yes"):
+            self.sound_on = True; self.save_config()
+            self.p("  sound: ON", "accent"); self._snd("ok")
+        elif opt in ("off", "mute", "disable", "0", "no"):
+            self._snd("blip"); self.sound_on = False; self.save_config()
+            self.p("  sound: OFF", "dim")
+        elif opt in ("test", "demo"):
+            import sys, shutil
+            try:
+                import winsound  # noqa: F401
+                backend = "winsound (Windows sound card)"
+            except Exception:
+                ext = next((p for p in ("paplay", "aplay", "ffplay", "afplay")
+                            if shutil.which(p)), None)
+                backend = (f"external player: {ext}" if ext
+                           else "Tk/terminal bell (no winsound, no audio player found)")
+            self.p(f"  platform : {sys.platform}    python {sys.version.split()[0]}", "dim")
+            self.p(f"  python at: {sys.executable}", "dim")
+            self.p(f"  audio    : {backend}", "dim")
+            self.p("  ♪ playing the boot chime...", "dim"); self._snd("boot")
+            if not self.sound_on:
+                self.p("  (sound is OFF — turn it on with 'sound on')", "warn")
+        else:
+            self.p(f"  sound is {'ON' if getattr(self, 'sound_on', True) else 'OFF'}", "accent")
+            self.p("  usage: sound on | off | test", "dim")
+
+    def cmd_beep(self, args=None):
+        args = args or []
+        try:
+            freq = int(args[0]) if len(args) >= 1 else 800
+            dur = int(args[1]) if len(args) >= 2 else 200
+        except ValueError:
+            self.p("usage: beep [freq_hz] [duration_ms]", "warn"); return
+        freq = max(37, min(32767, freq)); dur = max(10, min(5000, dur))
+        self._snd_play([(freq, dur)])
+        tail = "" if getattr(self, "sound_on", True) else "   (sound is OFF)"
+        self.p(f"  ♪ {freq} Hz for {dur} ms{tail}", "dim")
+
+    def cmd_play(self, args=None):
+        args = args or []
+        name = (args[0].lower() if args else "")
+        if name in ("", "list", "ls", "help"):
+            self.p("  tunes: " + ", ".join(sorted(self._TUNES)), "accent")
+            self.p("  usage: play <tune>", "dim"); return
+        tune = self._TUNES.get(name)
+        if not tune:
+            self.p(f"  no tune called '{name}'. try 'play list'.", "err"); return
+        self.p(f"  ♪ playing '{name}'...", "dim")
+        if not getattr(self, "sound_on", True):
+            self.p("  (sound is OFF — turn it on with 'sound on')", "warn")
+        self._snd_play(tune)
+
     def cmd_ver(self, args=None):
         self.p(f"  PHOSPHOR-OS  v{self.VERSION}", "accent")
         self.p("  A fictional retro-terminal simulator written in Python.", "text")
@@ -704,6 +897,7 @@ class SystemMixin:
         self.p("  Saving disk and powering off. Goodbye.", "accent")
         self.save_config()
         self.save_scores()
+        self._snd("shutdown", block=True)
         if runtime.INTERACTIVE:
             for _ in range(3):
                 print(self.c(".", "dim"), end="", flush=True)

@@ -93,7 +93,7 @@ exe is what makes this possible — no rebuild needed.
 
 ## Command reference
 
-There are **117 commands**. Type `help` inside the OS for the live list, or
+There are **120 commands**. Type `help` inside the OS for the live list, or
 `help <command>` for usage and aliases. Almost every command has short aliases
 (shown in parentheses).
 
@@ -173,6 +173,9 @@ There are **117 commands**. Type `help` inside the OS for the live list, or
 | `ps` (proc, procs) | List running processes (PID, user, CPU, mem, state) |
 | `top` (htop) | Live process monitor — load, memory, and a sorted process list |
 | `kill` | Terminate a process by PID (`kill -9` to force; system daemons are protected) |
+| `sound` (audio) | Toggle PC-speaker sound effects (`sound on/off/test`) |
+| `beep` | Emit a beep at a given frequency (`beep 440 200`) |
+| `play` (tune) | Play a built-in tune (`play list` to see them) |
 | `ver` (about) | Show OS version / about |
 | `save` | Save the virtual disk to the host |
 | `load` | Reload the virtual disk from the host |

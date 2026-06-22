@@ -60,6 +60,7 @@ class EggsMixin:
             if runtime.INTERACTIVE:
                 time.sleep(0.35)
         self.p("  ░▒▓  THE ANGLE HAS ASSUMED CONTROL  ▓▒░", "warn")
+        self._snd("angle")
         if runtime.INTERACTIVE:
             time.sleep(0.5)
         self.p("  manifesting across the system...", "err")

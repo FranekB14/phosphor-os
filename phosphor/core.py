@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "3.1"
+    VERSION = "3.2"
 
     DISK_FILE = "phosphor_disk.json"
 
@@ -103,6 +103,9 @@ class CoreShell:
         ("ps",     ["proc", "procs"], "system","ps [aux]",          "List running processes"),
         ("top",    ["htop"],       "system","top",                "Live process monitor (Enter refreshes, q quits)"),
         ("kill",   [],             "system","kill [-9] <pid>",    "Terminate a process by its PID"),
+        ("sound",  ["audio"],      "system","sound [on|off|test]", "Toggle PC-speaker sound effects"),
+        ("beep",   [],             "system","beep [freq] [ms]",   "Emit a beep at a given frequency"),
+        ("play",   ["tune"],       "system","play <tune>",        "Play a built-in tune (try: play list)"),
         ("ver",    ["about"],      "system","ver",                "Show OS version / about"),
         ("save",   [],             "system","save",               "Save the virtual disk to host"),
         ("load",   [],             "system","load",               "Reload the virtual disk from host"),
@@ -200,6 +203,7 @@ class CoreShell:
         self.accounts_path = os.path.join(app_data_dir(), "phosphor_users.json")
         self.procs = None        # process table, seeded lazily (Phase 6)
         self._next_pid = 1000    # next PID handed out to a new process
+        self.sound_on = True     # PC-speaker style sound effects (Phase 7)
         # build command dispatch (name/alias -> (handler, spec))
         self.commands = {}
         for primary, aliases, group, usage, desc in self.SPEC:
@@ -234,6 +238,8 @@ class CoreShell:
                 self.update_repo = cfg["update_repo"]
             if cfg.get("update_branch"):
                 self.update_branch = cfg["update_branch"]
+            if "sound" in cfg:
+                self.sound_on = bool(cfg["sound"])
         except Exception:
             pass
 
@@ -244,7 +250,8 @@ class CoreShell:
                            "aliases": self.aliases, "env": self.env,
                            "todos": self.todos, "packages": self.packages,
                            "update_repo": self.update_repo,
-                           "update_branch": self.update_branch}, f)
+                           "update_branch": self.update_branch,
+                           "sound": self.sound_on}, f)
         except Exception:
             pass
 
@@ -346,6 +353,7 @@ class CoreShell:
 
     def boot(self):
         self.cmd_clear()
+        self._snd("boot")
         logo = r"""
   ╔════════════════════════════════════════════════════════════════════════╗
   ║    ____  _   _  ___  ____  ____  _   _  ___  ____        ___  ____     ║
@@ -534,6 +542,7 @@ class CoreShell:
     def _exec(self, cmd, args):
         entry = self.commands.get(cmd)
         if not entry:
+            self._snd("error")
             self.p(f"Unknown command: '{cmd}'.  Type 'help' for the list.", "err")
             close = [n for n in self.commands if n.startswith(cmd[:2])][:3]
             if close:

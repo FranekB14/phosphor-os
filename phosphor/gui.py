@@ -222,6 +222,7 @@ def launch_gui():
             # start shell thread
             self.shell = Phosphor(input_fn=self._readline)
             self.shell._gui_saver = self._launch_saver   # screensaver opens its own window
+            self.shell._gui_bell = lambda: self.root.after(0, self.root.bell)  # audible fallback
             self._stdout_orig = sys.stdout
             sys.stdout = _GuiStdout(self.out_q)
             self.thread = threading.Thread(target=self._run_shell, daemon=True)
