@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "2.8"
+    VERSION = "2.9"
 
     DISK_FILE = "phosphor_disk.json"
 
@@ -105,6 +105,18 @@ class CoreShell:
         ("format", [],             "system","format",             "Wipe the virtual disk (asks first)"),
         ("reboot", [],             "system","reboot",             "Restart the simulator"),
         ("exit",   ["shutdown","quit"],"system","exit",          "Power off and leave"),
+        # --- users & permissions (Phase 5) ---
+        ("login",  ["signin"],     "users", "login [user]",       "Log in as a user (asks for a password)"),
+        ("logout", ["signout"],    "users", "logout",             "Log out and return to the login prompt"),
+        ("su",     [],             "users", "su [user]",          "Switch user (root if none given)"),
+        ("sudo",   [],             "users", "sudo <command>",     "Run a single command as root"),
+        ("passwd", ["password"],   "users", "passwd [user]",      "Set or change a password"),
+        ("useradd",["adduser"],    "users", "useradd <name>",     "Create a new user account (admin)"),
+        ("userdel",["deluser"],    "users", "userdel <name>",     "Delete a user account (admin)"),
+        ("users",  ["who"],        "users", "users",              "List the user accounts"),
+        ("id",     [],             "users", "id",                 "Show your user / group ids"),
+        ("chmod",  [],             "users", "chmod <mode> <file>","Change a file's permission bits (e.g. 644)"),
+        ("chown",  [],             "users", "chown <user> <file>","Change a file's owner"),
         # --- network (Phase 4) ---
         ("ipconfig",["ifconfig","ip"],"network","ipconfig",       "Show network config (incl. your real public IP)"),
         ("myip",   ["whatismyip","publicip"],"network","myip",    "Show your real public IP (VPN-aware)"),
@@ -175,6 +187,9 @@ class CoreShell:
         self._gui_saver = None   # GUI installs a callback to open a saver window
         self.update_repo = self.UPDATE_REPO
         self.update_branch = self.UPDATE_BRANCH
+        self.uid = 1000          # effective user id (0 = root); set by _init_accounts
+        self.accounts = {}       # username -> {pw, uid, admin, home}  (Phase 5)
+        self.accounts_path = os.path.join(app_data_dir(), "phosphor_users.json")
         # build command dispatch (name/alias -> (handler, spec))
         self.commands = {}
         for primary, aliases, group, usage, desc in self.SPEC:
@@ -185,6 +200,7 @@ class CoreShell:
         self.load_disk()
         self.load_config()
         self.load_scores()
+        self._init_accounts()
 
     def load_config(self):
         try:
@@ -287,6 +303,8 @@ class CoreShell:
         """Return a path list for `path`, or None if invalid. Does not check existence."""
         if path is None or path == "":
             return list(self.cwd)
+        if path[0] == "~":                       # ~ or ~/... -> the user's home
+            path = self._home_of(self.user) + path[1:]
         parts = path.replace("\\", "/").split("/")
         cur = [] if path.startswith("/") else list(self.cwd)
         for part in parts:
@@ -362,8 +380,9 @@ class CoreShell:
 
     def prompt(self):
         path = self.c(self._cwd_str(), "accent")
-        tag = self.c("PHOSPHOR", "dim")
-        return f"{self.c('[', 'dim')}{tag} {path}{self.c(']', 'dim')}{self.c('» ', 'text')}"
+        who = self.c(f"{self.user}@phosphor", "dim")
+        sym = "# " if self.uid == 0 else "» "
+        return f"{self.c('[', 'dim')}{who} {path}{self.c(']', 'dim')}{self.c(sym, 'text')}"
 
     def run(self):
         self.boot()

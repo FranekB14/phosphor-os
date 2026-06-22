@@ -47,10 +47,10 @@ class SystemMixin:
         groups = {}
         for primary, aliases, group, usage, desc in self.SPEC:
             groups.setdefault(group, []).append((primary, desc))
-        order = ["files", "tools", "system", "network", "toys", "games"]
+        order = ["files", "tools", "system", "users", "network", "toys", "games"]
         titles = {"files": "FILESYSTEM", "tools": "TOOLS",
-                  "system": "SYSTEM", "network": "NETWORK",
-                  "toys": "TOYS", "games": "GAMES"}
+                  "system": "SYSTEM", "users": "USERS & PERMISSIONS",
+                  "network": "NETWORK", "toys": "TOYS", "games": "GAMES"}
         for g in order:
             if not groups.get(g):
                 continue
@@ -353,7 +353,8 @@ class SystemMixin:
         return runtime.INTERACTIVE or runtime.GUI_ACTIVE
 
     def cmd_whoami(self, args=None):
-        self.p("  " + self.user, "text")
+        tag = "  (root)" if self.uid == 0 else ""
+        self.p(f"  {self.user}{tag}", "accent" if self.uid == 0 else "text")
 
     def cmd_scores(self, args=None):
         labels = {

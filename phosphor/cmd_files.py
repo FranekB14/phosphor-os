@@ -27,11 +27,15 @@ from .helpers import *
 class FilesMixin:
     def cmd_ls(self, args=None):
         args = args or []
+        long = "-l" in args
+        args = [a for a in args if a != "-l"]
         # 0 or 1 directory arg -> classic directory listing
         if len(args) <= 1:
             node = self._get_node(self._resolve(args[0] if args else None))
             if node is not None and node["type"] == "dir":
-                self._ls_dir(node)
+                if not self._can(node, "r"):
+                    self.p("  permission denied (try sudo)", "err"); return
+                self._ls_dir(node, long)
                 return
         # multiple args, or a non-directory (e.g. from a glob like *.txt) ->
         # list each path that exists
@@ -47,13 +51,21 @@ class FilesMixin:
         if not any_shown and not args:
             self.p("  (empty)", "dim")
 
-    def _ls_dir(self, node):
+    def _ls_dir(self, node, long=False):
         children = node["children"]
         if not children:
             self.p("  (empty)", "dim")
             return
         dirs = sorted(k for k, v in children.items() if v["type"] == "dir")
         files = sorted(k for k, v in children.items() if v["type"] == "file")
+        if long:
+            for d in dirs:
+                c = children[d]
+                self.p(f"  d{self._mode_str(c)} {self._owner_of(c):<10} {'-':>7}  {d}/", "accent")
+            for f in files:
+                c = children[f]
+                self.p(f"  -{self._mode_str(c)} {self._owner_of(c):<10} {len(c['content']):>7}  {f}", "text")
+            return
         for d in dirs:
             self.p(f"  <DIR>  {d}/", "accent")
         for f in files:
@@ -62,7 +74,7 @@ class FilesMixin:
 
     def cmd_cd(self, args):
         if not args:
-            self.cwd = []
+            self.cwd = self._resolve(self._home_of(self.user))
             return
         target = self._resolve(args[0])
         node = self._get_node(target)
@@ -131,8 +143,15 @@ class FilesMixin:
         if parent is None or parent["type"] != "dir":
             self.p("Invalid path.", "err"); return
         existing = parent["children"].get(name)
+        if existing is not None and not self._can(existing, "w"):
+            self.p(f"  permission denied: {name} (try sudo)", "err"); return
+        if existing is None and not self._can(parent, "w"):
+            self.p("  permission denied: cannot create here (try sudo)", "err"); return
         base = existing["content"] if (append and existing and existing["type"] == "file") else ""
-        parent["children"][name] = _new_file(base + text)
+        node = _new_file(base + text)
+        node["owner"] = (existing.get("owner") if existing else None) or self.user
+        node["mode"] = existing.get("mode") if existing else 0o644
+        parent["children"][name] = node
 
     def cmd_write(self, args):
         if len(args) < 1:
@@ -156,6 +175,8 @@ class FilesMixin:
             node = self._get_node(self._resolve(path))
             if not node or node["type"] != "file":
                 self.p(f"No such file: {path}", "err"); continue
+            if not self._can(node, "r"):
+                self.p(f"  permission denied: {path} (try sudo)", "err"); continue
             if not node["content"]:
                 self.p("  (empty file)", "dim"); continue
             for line in node["content"].splitlines():
@@ -168,6 +189,8 @@ class FilesMixin:
         node = self._get_node(self._resolve(path))
         if node and node["type"] == "dir":
             self.p("That's a directory.", "err"); return
+        if node is not None and not self._can(node, "w"):
+            self.p("  permission denied (try sudo)", "err"); return
         lines = node["content"].splitlines() if (node and node["type"] == "file") else []
         self.p(f"  -- editing {path} --  ('?' for help, 'wq' to save & quit)", "accent")
         self._edit_show(lines)
@@ -242,6 +265,9 @@ class FilesMixin:
             node = parent["children"].get(name) if parent else None
             if not node or node["type"] != "file":
                 self.p(f"No such file: {path} (use rmdir for directories).", "err")
+                continue
+            if not self._can(node, "w"):
+                self.p(f"  permission denied: {path} (try sudo)", "err")
                 continue
             del parent["children"][name]
 

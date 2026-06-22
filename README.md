@@ -21,6 +21,7 @@ Pillow, and only for one command.
 - [Updating](#updating)
 - [Command reference](#command-reference)
 - [The shell](#the-shell)
+- [Users & permissions](#users--permissions)
 - [The network](#the-network)
 - [Screensavers](#screensavers)
 - [Games & toys](#games--toys)
@@ -92,7 +93,7 @@ exe is what makes this possible — no rebuild needed.
 
 ## Command reference
 
-There are **94 commands**. Type `help` inside the OS for the live list, or
+There are **105 commands**. Type `help` inside the OS for the live list, or
 `help <command>` for usage and aliases. Almost every command has short aliases
 (shown in parentheses).
 
@@ -174,6 +175,22 @@ There are **94 commands**. Type `help` inside the OS for the live list, or
 | `reboot` | Restart the simulator |
 | `exit` (shutdown, quit) | Power off and leave |
 
+### Users & permissions
+
+| Command | What it does |
+|---------|--------------|
+| `login` (signin) | Log in as a user (asks for a password) |
+| `logout` (signout) | Log out and return to the login prompt |
+| `su` | Switch user (root if none given) |
+| `sudo` | Run a single command as root |
+| `passwd` (password) | Set or change a password |
+| `useradd` (adduser) | Create a new user account (admin) |
+| `userdel` (deluser) | Delete a user account (admin) |
+| `users` (who) | List the user accounts |
+| `id` | Show your user / group ids |
+| `chmod` | Change a file's permission bits (e.g. `644`) |
+| `chown` | Change a file's owner |
+
 ### Network
 
 | Command | What it does |
@@ -239,6 +256,37 @@ It behaves like a real shell, not just a command launcher:
 - **Tab completion** — completes command names and file names
 
 ---
+
+## Users & permissions
+
+PHOSPHOR-OS is multi-user. There's a `root` superuser and your own account, and
+you can make more.
+
+```
+users                    list accounts
+useradd alice            create a user (then: passwd alice)
+login alice              log in as someone
+su root                  become root (root's prompt ends in #)
+passwd                   set/change your password
+```
+
+Files have an **owner** and Unix-style permission bits. `ls -l` shows them:
+
+```
+ls -l                    long listing with mode + owner
+chmod 600 secret.txt     change permission bits
+chown alice secret.txt   change owner (admin)
+```
+
+Some things are owned by `root` and protected — try `cat /etc/shadow` as a normal
+user and you'll be denied. Prefix a command with **`sudo`** to run it as root:
+
+```
+sudo cat /etc/shadow
+```
+
+Your home directory is `~` (e.g. `/home/alice`); `cd` with no argument takes you
+there. Accounts and passwords are saved between sessions.
 
 ## The network
 

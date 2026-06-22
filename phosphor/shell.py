@@ -4,13 +4,14 @@ from .core import CoreShell
 from .cmd_files import FilesMixin
 from .cmd_tools import ToolsMixin
 from .cmd_system import SystemMixin
+from .cmd_users import UsersMixin
 from .cmd_network import NetworkMixin
 from .toys import ToysMixin
 from .games import GamesMixin
 from .eggs import EggsMixin
 
 
-class Phosphor(CoreShell, FilesMixin, ToolsMixin, SystemMixin, NetworkMixin, ToysMixin, GamesMixin, EggsMixin):
+class Phosphor(CoreShell, FilesMixin, ToolsMixin, SystemMixin, UsersMixin, NetworkMixin, ToysMixin, GamesMixin, EggsMixin):
     pass
 
 
