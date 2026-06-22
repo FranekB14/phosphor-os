@@ -93,7 +93,7 @@ exe is what makes this possible — no rebuild needed.
 
 ## Command reference
 
-There are **126 commands**. Type `help` inside the OS for the live list, or
+There are **127 commands**. Type `help` inside the OS for the live list, or
 `help <command>` for usage and aliases. Almost every command has short aliases
 (shown in parentheses).
 
@@ -218,6 +218,7 @@ There are **126 commands**. Type `help` inside the OS for the live list, or
 | `browse` (web, www, surf) | Browse the in-world web — follow numbered links, `b` back, `q` quit |
 | `bbs` | Dial into the Night City BBS — read boards and post messages (they persist) |
 | `oracle` | Consult the oracle on the deepnet — ask it anything |
+| `quest` (journal) | Track the deepnet mystery — a solvable puzzle hidden across the network |
 
 ### Toys
 

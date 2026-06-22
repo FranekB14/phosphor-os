@@ -25,7 +25,7 @@ from .helpers import *
 
 
 class CoreShell:
-    VERSION = "3.4"
+    VERSION = "3.5"
 
     DISK_FILE = "phosphor_disk.json"
 
@@ -140,6 +140,7 @@ class CoreShell:
         ("browse", ["web","www","surf"],"network","browse [host]", "Browse the in-world web (follow numbered links)"),
         ("bbs",    [],             "network","bbs",               "Dial into the Night City BBS"),
         ("oracle", [],             "network","oracle",            "Consult the oracle on the deepnet"),
+        ("quest",  ["journal"],    "network","quest",             "Track the deepnet mystery"),
         # --- toys ---
         ("matrix", [],             "toys",  "matrix [frames]",     "Digital rain effect"),
         ("hack",   [],             "toys",  "hack <target>",       "Totally real hacking sequence ;)"),

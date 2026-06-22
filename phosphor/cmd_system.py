@@ -577,6 +577,12 @@ class SystemMixin:
                            "cpu": 0.6, "mem": 0.8, "state": "S", "protected": False}
         self.procs[1337] = {"pid": 1337, "user": self.user, "name": "matrix-rain",
                             "cpu": 2.3, "mem": 1.0, "state": "R", "protected": False}
+        try:                                          # once the angle blinks, the watcher is gone
+            self._ensure_quest()
+            if self.quest.get("solved"):
+                self.procs.pop(5, None)
+        except Exception:
+            pass
 
     def _proc_snapshot(self):
         self._ensure_procs()

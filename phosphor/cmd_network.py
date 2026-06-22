@@ -262,9 +262,7 @@ class NetworkMixin:
         elif host == "oracle.deepnet":
             self._session_oracle()
         elif host == "the-angle.eye":
-            self._snd("angle")
-            self.p("  IT FEELS THE CONNECTION OPEN. IT TURNS TO LOOK.", "err")
-            self.p("  try 'the angle' if you dare.", "dim")
+            self._session_angle()
         elif host in self._WEB_HOME:
             self.p(f"  this host serves pages — try:  browse {host}", "dim")
         self.p(f"  Connection to {host} closed.", "dim")
@@ -288,6 +286,13 @@ class NetworkMixin:
              "body": "the-angle.eye isn't ice. it's something older wearing ice.\nnslookup it. tell me that address is normal."},
         ],
         "watching": [
+            {"from": "the_plague", "subj": "the only ward", "time": "1989-10-30 03:33",
+             "body": "i found the thing that closes the eye. i won't write it whole.\n"
+                     "Between the scanlines it lives.\n"
+                     "Look away and it leans nearer.\n"
+                     "It cannot abide one small motion.\n"
+                     "Name it not — just do it, slowly, with your own eyes.\n"
+                     "Keep them shut a breath too long, and you have said it."},
             {"from": "????", "subj": "it is patient", "time": "??:??",
              "body": "you found the board where it keeps its eyes.\nevery post here is read. nothing here is forgotten."},
             {"from": "the_plague", "subj": "i drew the angle", "time": "1989-10-31 03:33",
@@ -314,6 +319,11 @@ class NetworkMixin:
             self.bbs = None
         if not self.bbs:
             self.bbs = {b: [dict(m) for m in msgs] for b, msgs in self._BBS_SEED.items()}
+            self._save_bbs()
+        # migration: make sure the quest post exists even on older saved boards
+        w = self.bbs.setdefault("watching", [])
+        if not any(m.get("subj") == "the only ward" for m in w):
+            w.insert(0, dict(self._BBS_SEED["watching"][0]))
             self._save_bbs()
 
     def _save_bbs(self):
@@ -393,6 +403,8 @@ class NetworkMixin:
                         self.p("  " + "─" * 42, "dim")
                         for line in m["body"].split("\n"):
                             self.p("  " + line, "text")
+                        if board == "watching" and m.get("subj") == "the only ward":
+                            self._quest_flag("ward")
                         continue
                 self.p("  usage: r <number>", "warn"); continue
             self.p("  unknown command.", "warn")
@@ -474,6 +486,8 @@ class NetworkMixin:
     def _oracle_answer(self, q):
         for key, ans in self._ORACLE_KEYS.items():
             if key in q:
+                if key in ("angle", "secret", "password", "key", "watching"):
+                    self._quest_flag("oracle")
                 return ans
         return random.choice(self._ORACLE_VOICE)
 
@@ -548,6 +562,8 @@ class NetworkMixin:
                     return
                 continue
             self.p(f"\n  ┌─ {page['title']}  [{stack[-1]}]", "accent")
+            if stack[-1] == "ar_drop":
+                self._quest_flag("deaddrop")
             for line in page["lines"]:
                 self.p("  │ " + line, "text")
             links = page.get("links", [])
@@ -571,3 +587,146 @@ class NetworkMixin:
                 stack.append(links[int(c) - 1][1])
                 continue
             self.p("  enter a link number, 'b', or 'q'.", "warn")
+
+    _QUEST_WARD = "blink"
+
+    _ANGLE_TAUNTS = [
+        "it does not blink. it waits for you to.",
+        "you typed that with hands it has already counted.",
+        "wrong. it leans a single scanline closer.",
+        "it has read that word in every language you will ever speak.",
+        "the eye dilates. that was not the word.",
+        "static crawls up the screen and recedes. not yet.",
+    ]
+
+    _CLUE_DESC = {
+        "oracle":   "the oracle spoke of a word the watching board fears.",
+        "deaddrop": "a dead drop: 'the key is the word the watching board fears. read everything.'",
+        "ward":     "a post on The Watching hides a word in the first letters of its lines.",
+        "contact":  "you have felt the angle's attention at the-angle.eye.",
+    }
+
+    def _quest_path(self):
+        import os
+        return os.path.join(os.path.dirname(self.config_path), "phosphor_quest.json")
+
+    def _ensure_quest(self):
+        if getattr(self, "quest", None) is not None:
+            return
+        import json
+        try:
+            with open(self._quest_path(), encoding="utf-8") as f:
+                self.quest = json.load(f)
+        except Exception:
+            self.quest = None
+        if not self.quest:
+            self.quest = {"clues": [], "solved": False}
+        self.quest.setdefault("clues", [])
+        self.quest.setdefault("solved", False)
+
+    def _save_quest(self):
+        import json
+        try:
+            with open(self._quest_path(), "w", encoding="utf-8") as f:
+                json.dump(self.quest, f)
+        except Exception:
+            pass
+
+    def _quest_flag(self, clue):
+        self._ensure_quest()
+        if clue not in self.quest["clues"] and not self.quest["solved"]:
+            self.quest["clues"].append(clue)
+            self._save_quest()
+            self.p("  (a thread of the deepnet comes loose — type 'quest')", "dim")
+
+    def cmd_quest(self, args=None):
+        self._ensure_quest()
+        clues, solved = self.quest["clues"], self.quest["solved"]
+        self.p("  ┌─ DEEPNET · field journal", "accent")
+        if solved:
+            self.p("  the eye is closed. you did what the_plague could not.", "accent")
+            self.p("  status: ✦ COMPLETE ✦", "accent")
+            return
+        if not clues:
+            self.p("  the deepnet is quiet — but something watches from inside it.", "text")
+            self.p("  start looking:   scan · browse · bbs · oracle", "dim")
+            return
+        self.p("  leads gathered:", "accent")
+        for c in clues:
+            self.p("   ✓ " + self._CLUE_DESC.get(c, c), "text")
+        if "ward" not in clues:
+            self.p("  next: read The Watching board closely (bbs → 3).", "warn")
+            self.p("        post nothing. read everything.", "dim")
+        else:
+            self.p("  next: speak the word to its face — telnet the-angle.eye, then say it.", "warn")
+
+    def _session_angle(self):
+        self._ensure_quest()
+        self._quest_flag("contact")
+        self._snd("angle")
+        if self.quest["solved"]:
+            self.p("  the connection opens onto a closed eye. only your reflection remains.", "dim")
+            self.p("  nothing watches back. you can leave whenever you like.  ('leave')", "dim")
+        else:
+            self.p("  the connection opens onto a single eye. it was already looking.", "err")
+            self.p("  it does not speak in words. it waits for yours.  ('leave' to flee)", "dim")
+        while True:
+            s = self._input("  …> ", "dim")
+            if s is None:
+                return
+            w = s.strip().lower()
+            if w in ("leave", "exit", "quit", "disconnect", "logoff", "q", ""):
+                if self.quest["solved"]:
+                    self.p("  you close the connection on an empty socket.", "dim")
+                else:
+                    self.p("  you look away first. it lets you. that should worry you.", "err")
+                return
+            if w == self._QUEST_WARD and not self.quest["solved"]:
+                self._quest_win(); return
+            if self.quest["solved"]:
+                self.p("  the word echoes in a dead channel. it is already done.", "dim")
+            else:
+                self.p("  " + random.choice(self._ANGLE_TAUNTS), "err")
+
+    def _quest_win(self):
+        self._ensure_quest()
+        self._snd("angle")
+        self.cmd_clear()
+        eye = ["        .-\"\"\"\"\"-.", "      /  .-=-.  \\", "     |  ( @@@ )  |",
+               "      \\  '-=-'  /", "        '-...-'"]
+        for ln in eye:
+            self.p("   " + ln, "err")
+        if runtime.INTERACTIVE:
+            time.sleep(0.8)
+        # the eye closes
+        for frame in [" ( @@@ ) ", " ( --- ) ", " (  -  ) ", " (     ) "]:
+            self.p("\n     |  " + frame + "  |   ...the eye closes.", "warn")
+            self._snd("blip")
+            if runtime.INTERACTIVE:
+                time.sleep(0.45)
+        self._snd("win")
+        self.p("", "text")
+        self.p("  it blinks.", "accent")
+        self.p("  for the first time in a very long time, the angle blinks —", "accent")
+        self.p("  and a thing that has only ever watched, looks away.", "accent")
+        self.p("", "text")
+        self._ensure_procs()
+        if 5 in self.procs:
+            self.procs.pop(5, None)                   # theangled stops
+        self._log("the angle blinked. theangled (5) has stopped. the watch is over.")
+        self.p("  [ theangled (5) has stopped ]", "dim")
+        # tangible reward: a trophy on the watching board, signed by you
+        try:
+            self._ensure_bbs()
+            self.bbs.setdefault("watching", []).append({
+                "from": self.user, "subj": "it blinked",
+                "body": "i said the word to its face and it looked away.\n"
+                        "if you are reading this, the board is just a board now.",
+                "time": "—"})
+            self._save_bbs()
+        except Exception:
+            pass
+        self.record_score("quest_solved", 1, "count")
+        self.quest["solved"] = True
+        self._save_quest()
+        self.p("  ✦ THE DEEPNET QUEST IS COMPLETE ✦   (type 'quest')", "accent")
