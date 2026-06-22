@@ -138,6 +138,7 @@ class CoreShell:
         ("morse",  [],             "tools", "morse <text|code>",   "Encode text to Morse, or decode . - back"),
         ("leet",   ["1337"],       "tools", "leet <text>",         "Translate text into l33tspeak"),
         ("rot13",  [],             "tools", "rot13 <text>",         "ROT13 cipher (run twice to undo)"),
+        ("cypherize", ["cypher", "cipher"], "tools", "cypherize [-d]", "Multi-layer cipher: Caesar+Atbash+Vigenère+leet (-d decrypts)"),
         ("bases",  ["base"],       "tools", "bases <number>",      "Show a number in dec / bin / oct / hex"),
         ("asciitable", ["chars"],  "tools", "asciitable",          "Print the printable ASCII table"),
         # --- more toys ---

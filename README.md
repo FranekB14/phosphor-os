@@ -93,7 +93,7 @@ exe is what makes this possible — no rebuild needed.
 
 ## Command reference
 
-There are **113 commands**. Type `help` inside the OS for the live list, or
+There are **114 commands**. Type `help` inside the OS for the live list, or
 `help <command>` for usage and aliases. Almost every command has short aliases
 (shown in parentheses).
 
@@ -142,6 +142,7 @@ There are **113 commands**. Type `help` inside the OS for the live list, or
 | `morse` | Encode text to Morse, or decode `. -` back |
 | `leet` (1337) | Translate text into l33tspeak |
 | `rot13` | ROT13 cipher (run twice to undo) |
+| `cypherize` (cypher, cipher) | Multi-layer cipher: Caesar → Atbash → Vigenère → leet. Prompts for a shift number, a key, and a sentence; `cypherize -d` reverses it |
 | `bases` (base) | Show a number in dec / bin / oct / hex |
 | `asciitable` (chars) | Print the printable ASCII table |
 

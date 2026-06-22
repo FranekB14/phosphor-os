@@ -307,6 +307,74 @@ class ToolsMixin:
         import codecs
         self.p("  " + codecs.encode(" ".join(args), "rot_13"), "accent")
 
+    _CY_LEET = {"A": "4", "B": "8", "E": "3", "G": "6", "I": "1",
+                "L": "£", "O": "0", "S": "5", "T": "7", "Z": "2"}
+
+    def _cy_caesar(self, text, shift):
+        return "".join(chr((ord(c) - 65 + shift) % 26 + 65) if "A" <= c <= "Z" else c
+                       for c in text)
+
+    def _cy_atbash(self, text):                       # atbash is its own inverse
+        return "".join(chr(155 - ord(c)) if "A" <= c <= "Z" else c for c in text)
+
+    def _cy_vigenere(self, text, key, decrypt=False):
+        ks = [ord(k) - 65 for k in key.upper() if "A" <= k <= "Z"]
+        if not ks:
+            return text
+        out, i = [], 0
+        for c in text:
+            if "A" <= c <= "Z":
+                k = ks[i % len(ks)]
+                off = ord(c) - 65
+                off = (off - k) % 26 if decrypt else (off + k) % 26
+                out.append(chr(off + 65)); i += 1
+            else:
+                out.append(c)
+        return "".join(out)
+
+    def _cy_leet(self, text):
+        return "".join(self._CY_LEET.get(c, c) for c in text)
+
+    def _cy_unleet(self, text):
+        rev = {v: k for k, v in self._CY_LEET.items()}
+        return "".join(rev.get(c, c) for c in text)
+
+    def cmd_cypherize(self, args=None):
+        decrypt = bool(args) and args[0].lower() in ("-d", "--decrypt", "decrypt", "d")
+        n_raw = self._input("  caesar shift (a number): ", "accent")
+        if n_raw is None:
+            return
+        try:
+            shift = int(n_raw.strip())
+        except ValueError:
+            self.p("  that isn't a whole number.", "err"); return
+        key = self._input("  vigenère key (letters): ", "accent")
+        if key is None:
+            return
+        if not any(c.isalpha() for c in key):
+            self.p("  the key needs at least one letter.", "err"); return
+        prompt = "  ciphertext to decrypt: " if decrypt else "  sentence to encrypt: "
+        text = self._input(prompt, "accent")
+        if text is None:
+            return
+        text = text.upper()
+        if decrypt:
+            text = self._cy_unleet(text)
+            text = self._cy_vigenere(text, key, decrypt=True)
+            text = self._cy_atbash(text)
+            out = self._cy_caesar(text, -shift)
+            label = "decrypted"
+        else:
+            text = self._cy_caesar(text, shift)
+            text = self._cy_atbash(text)
+            text = self._cy_vigenere(text, key)
+            out = self._cy_leet(text)
+            label = "encrypted"
+        chain = f"caesar({shift}) → atbash → vigenère({key.upper()}) → leet"
+        self.p("  layers: " + chain + ("   [reversed]" if decrypt else ""), "dim")
+        self.p(f"  {label}:", "dim")
+        self.p("    " + out, "accent")
+
     def cmd_bases(self, args):
         if not args:
             self.p("usage: bases <number>   (accepts 0x.. 0b.. too)", "warn"); return
