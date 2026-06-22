@@ -136,6 +136,45 @@ class UsersMixin:
             home["children"][user] = d
         return f"/home/{user}"
 
+    def _needs_login(self):
+        """A login prompt only matters once a password exists somewhere. On a
+        fresh, password-free system we just drop straight in as root."""
+        return any(a.get("pw") for a in self.accounts.values())
+
+    def _login_screen(self):
+        """Force a login before the shell starts. Loops until a valid account
+        and password are given (or the input stream ends)."""
+        self.p("", "text")
+        self.p("  ── PHOSPHOR-OS login ──────────────────────────", "accent")
+        attempts = 0
+        while self.running:
+            name = self._input("  login: ", "accent")
+            if name is None:                     # EOF / Ctrl-C -> give up
+                self.running = False
+                return
+            name = name.strip().lower()
+            if not name:
+                continue
+            acct = self.accounts.get(name)
+            need_pw = acct.get("pw") if acct else None
+            entered = ""
+            if need_pw is not None:
+                entered = self._input("  password: ", "dim")
+                if entered is None:
+                    self.running = False
+                    return
+            if acct and (need_pw is None or self._hash(entered) == need_pw):
+                self._switch_to(name)
+                self.p(f"  login successful — welcome, {name}.", "accent")
+                self.p("", "text")
+                return
+            attempts += 1
+            self.p("  login incorrect", "err")
+            if attempts >= 5:
+                self.p("  too many failed attempts — locking console.", "err")
+                self.running = False
+                return
+
     def _switch_to(self, user):
         self.user = user
         self.uid = self.accounts[user].get("uid", 1000)

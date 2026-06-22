@@ -386,6 +386,16 @@ class CoreShell:
 
     def run(self):
         self.boot()
+        if self._needs_login():
+            self._login_screen()
+            if not self.running:
+                self.save_disk()
+                return
+        else:
+            # fresh / password-free system: drop straight in as root
+            self._switch_to("root")
+            self.p("  logged in as root.  (set a password with 'passwd' to require login)", "dim")
+            self.p("", "text")
         self._run_autoexec()
         while self.running:
             try:

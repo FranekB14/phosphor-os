@@ -259,16 +259,20 @@ It behaves like a real shell, not just a command launcher:
 
 ## Users & permissions
 
-PHOSPHOR-OS is multi-user. There's a `root` superuser and your own account, and
-you can make more.
+The first time you open PHOSPHOR-OS it logs you straight in as **`root`** (the
+superuser, no password) — there's nothing to type. The moment you set a password
+on any account, a **login screen** appears at startup instead.
 
 ```
+passwd                   give your account a password (this turns on the login screen)
 users                    list accounts
 useradd alice            create a user (then: passwd alice)
 login alice              log in as someone
-su root                  become root (root's prompt ends in #)
-passwd                   set/change your password
+logout                   return to the login screen
+su root                  become root again (root's prompt ends in #)
 ```
+
+`root` (and any account you mark admin) has full access to everything.
 
 Files have an **owner** and Unix-style permission bits. `ls -l` shows them:
 
